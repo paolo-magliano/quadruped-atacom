@@ -1,0 +1,101 @@
+
+# Task name - used to pick the class to load
+task_name: ${task.name}
+
+# if set to positive integer, overrides the default number of environments
+num_envs: 256
+
+# seed - set to -1 to choose random seed
+seed: 0
+# set to True for deterministic performance
+torch_deterministic: False
+
+n_epochs: 1000
+quiet: True
+learn:
+  n_steps: 98304 # 4096 * 24
+  n_steps_per_fit: 6144 # 256 * 24
+  quiet: ${quiet}
+
+## Device config
+physics_engine: 'physx'
+# whether to use cpu or gpu pipeline
+pipeline: 'gpu'
+# whether to use cpu or gpu physx
+sim_device: 'gpu'
+# used for gpu simulation only - device id for running sim and task if pipeline=gpu
+device_id: 0
+# device to run RL
+rl_device: 'cuda:0'
+# multi-GPU training
+multi_gpu: False
+
+## PhysX arguments
+num_threads: 4 # Number of worker threads used by PhysX - for CPU PhysX only.
+solver_type: 1 # 0: pgs, 1: tgs
+
+# MushroomRL arguments
+# test - if set, run policy in inference mode (requires setting checkpoint to load)
+test: False
+# used to set checkpoint path
+checkpoint: ''
+# evaluate checkpoint
+eval:
+  n_episodes: 5
+  quiet: ${quiet}
+# Set to enable debugging
+debug: False 
+
+# disables rendering
+headless: False
+# enables native livestream
+enable_livestream: False
+# timeout for MT script
+mt_timeout: 300
+# Warp
+warp: False
+
+# enables viewport recording
+enable_recording: False
+# interval between video recordings (in steps)
+recording_interval: 2000
+# length of the recorded video (in steps)
+recording_length: 100
+# fps for writing recorded video
+recording_fps: 30
+# directory to save recordings in
+recording_dir: ''
+
+# ATACOM Parameters
+atacom:
+  slack_dynamics_type: 'exp'
+  slack_beta: 2
+  slack_tol: 1e-6
+  randomize_dynamics: False
+  double_integration: False
+  drift_compensation_type: 'vanilla'
+  drift_clipping: True
+
+
+results_dir: './logs'
+wandb:
+  activate: False
+  key: '' #YOUR_WANDB_API
+  group: ''
+  name: '${task.name}_${seed}'
+  entity: 'paolo_magliano'
+  project: 'ATACOM_${task.name}'
+
+# set default task and default training config based on task
+defaults:
+  - _self_
+  - task: Anymal
+  - train: ${task}PPO
+  - override hydra/job_logging: disabled
+
+# set the directory where the output files get saved
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+
