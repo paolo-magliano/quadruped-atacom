@@ -2,7 +2,6 @@ import os
 from tqdm import tqdm
 import torch
 import wandb
-import inspect
 
 from mushroom_rl.core import VectorCore, Logger
 from mushroom_rl.utils.torch import TorchUtils
@@ -15,7 +14,7 @@ from omniisaacgymenvs.utils.hydra_cfg.hydra_utils import *
 from rl_util.build_rl_agent import build_rl_agent
 from rl_util.compute_metric import compute_metrics
 
-from util.wandb import wandb_init
+from experiments.util.log_info import wandb_init, log_info
 
 from atacom.envs.anymal import AnymalEnv
 from atacom_anymal import build_atacom_agent
@@ -37,28 +36,30 @@ def experiment(cfg: DictConfig) -> None:
     
     rl_agent = build_rl_agent(env.info, cfg_dict['train'])
 
-    atacom_rl_agent = build_atacom_agent(rl_agent, dynamics_info, cfg_dict['atacom'])
+    if cfg_dict['atacom']['enable']:
+        atacom_rl_agent = build_atacom_agent(rl_agent, dynamics_info, cfg_dict['atacom'])
+    else:
+        atacom_rl_agent = rl_agent
 
     core = VectorCore(atacom_rl_agent, env)
 
-    J, R, E, V = compute_metrics(core, cfg_dict['eval'])
+    J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'])
     best_R = -float('inf')
 
     # Write logging
-    logger.epoch_info(0, J=J, R=R, E=E, V=V)
-    log_dict = {"Reward/J": J, "Reward/R": R, "Training/E": E, "Training/V": V}
+    log_dict = log_info(logger, rl_agent, -1, J, R, E, V, task_info)
     wandb.log(log_dict, step=0)
-    
+
     if not cfg_dict['test']:
         for epoch in tqdm(range(cfg_dict['n_epochs']), disable=False, leave=False):           
             core.learn(**cfg_dict['learn'])
 
-            J, R, E, V = compute_metrics(core, cfg_dict['eval'])
+            J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'])
 
             # Write logging
-            logger.epoch_info(epoch + 1, J=J, R=R, E=E, V=V)
-            log_dict = {"Reward/J": J, "Reward/R": R, "Training/E": E, "Training/V": V}
+            log_dict = log_info(logger, rl_agent, epoch, J, R, E, V, task_info)
             wandb.log(log_dict, step=epoch + 1)
+                    
             if R > best_R:
                 best_R = R
                 logger.log_best_agent(rl_agent, R)
@@ -67,6 +68,8 @@ def experiment(cfg: DictConfig) -> None:
                 logger.log_agent(rl_agent, epoch + 1)
 
         wandb_run.finish()
+    if os.path.exists(logger._results_dir) and os.path.isdir(logger._results_dir) and not os.listdir(logger._results_dir):
+        os.rmdir(logger._results_dir)
 
 if __name__ == '__main__':
     experiment()

@@ -3,18 +3,18 @@
 task_name: ${task.name}
 
 # if set to positive integer, overrides the default number of environments
-num_envs: 256
+num_envs: 1024
 
 # seed - set to -1 to choose random seed
 seed: 0
 # set to True for deterministic performance
 torch_deterministic: False
 
-n_epochs: 1000
+n_epochs: 300
 quiet: True
 learn:
   n_steps: 98304 # 4096 * 24
-  n_steps_per_fit: 6144 # 256 * 24
+  n_steps_per_fit: 98304 # 4096 * 24
   quiet: ${quiet}
 
 ## Device config
@@ -41,7 +41,7 @@ test: False
 checkpoint: ''
 # evaluate checkpoint
 eval:
-  n_episodes: 5
+  n_steps: 65536 # 64 * 1024
   quiet: ${quiet}
 # Set to enable debugging
 debug: False 
@@ -68,6 +68,7 @@ recording_dir: ''
 
 # ATACOM Parameters
 atacom:
+  enable: True
   slack_dynamics_type: 'exp'
   slack_beta: 2
   slack_tol: 1e-6
@@ -76,6 +77,7 @@ atacom:
   drift_compensation_type: 'vanilla'
   drift_clipping: True
 
+urdf_filepath: ''
 
 results_dir: './logs'
 wandb:

@@ -1,2 +1,2 @@
-networkx>=3.4.2
-urdfpy
+
+pin==2.6.20

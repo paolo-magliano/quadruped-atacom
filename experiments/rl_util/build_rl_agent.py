@@ -26,6 +26,8 @@ def build_rl_agent(mdp_info, cfg_dict):
         else:
             raise NotImplementedError(f'Algorithm {cfg_dict["algorithm"]} not implemented')
     else:
+        if '.msh' in cfg_dict['checkpoint']:
+            return Agent.load(cfg_dict['checkpoint'])
         file_list = _get_file_by_postfix(cfg_dict['checkpoint'], f'{cfg_dict["seed"]}-best.msh')
         if file_list:
             return Agent.load(file_list[0])
