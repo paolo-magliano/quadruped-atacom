@@ -41,7 +41,7 @@ class JointPosConstraint(Constraint):
         return J_pos.unsqueeze(0).repeat(q.shape[0], 1, 1).to(q.device)
     
 class FootPosConstraint(Constraint):
-    def __init__(self, n_joints, side, get_foot, get_foot_J, alpha=10.5, beta=10.5, min_z=-0.3, max_z=-0.1, logger=None):
+    def __init__(self, n_joints, side, get_foot, get_foot_J, alpha=1.5, beta=0.2, min_z=-0.8, max_z=0.1, logger=None):
         name = side + '_foot_pos'
         self.n_joints = n_joints
         self.logger = logger
@@ -86,12 +86,12 @@ def build_atacom_agent(rl_agent, dynamics_info, atacom_params):
     # constr_list.add_constraint(JointPosConstraint(dynamics_info['n_joints'], dynamics_info['joint_pos_limit'].to(TorchUtils.get_device()), logger=dynamics_info['env_info']['logger']))
     
     # No possible action
-    constr_list.add_constraint(JointPosConstraint(dynamics_info['n_joints'], torch.vstack([torch.tensor([-2. for _ in range(dynamics_info['n_joints'])], dtype=torch.float32), torch.tensor([2. for _ in range(dynamics_info['n_joints'])], dtype=torch.float32)]).to(TorchUtils.get_device()), logger=dynamics_info['env_info']['logger']))
+    # constr_list.add_constraint(JointPosConstraint(dynamics_info['n_joints'], torch.vstack([torch.tensor([-0.1 for _ in range(dynamics_info['n_joints'])], dtype=torch.float32), torch.tensor([0.1 for _ in range(dynamics_info['n_joints'])], dtype=torch.float32)]).to(TorchUtils.get_device()), logger=dynamics_info['env_info']['logger']))
     
-    # constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'LF', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
-    # constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'RF', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
-    # constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'LH', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
-    # constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'RH', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
+    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'LF', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
+    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'RF', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
+    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'LH', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
+    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'RH', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
     atacom_controller = ATACOMController(constr_list, dyn,
                                          slack_beta=atacom_params['slack_beta'],
                                          slack_tol=atacom_params['slack_tol'],

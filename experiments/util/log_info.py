@@ -8,7 +8,7 @@ def wandb_init(cfg_dict):
     wandb.login(key=key, timeout=10)
     return wandb.init(project=cfg_dict['wandb']['project'], dir=cfg_dict['results_dir'], config=cfg_dict, group=cfg_dict['wandb']['group'], mode=mode, entity=cfg_dict['wandb']['entity'])
 
-def log_info(logger, rl_agent, epoch, J, R, E, V, task_info, precision=5):
+def log_info(logger, rl_agent, epoch, J, R, E, V, task_info, precision=5, log_agent=False):
     log_dict = {"Reward/J": sig_figs(J, precision), "Reward/R": sig_figs(R, precision), "Training/E": sig_figs(E, precision), "Training/V": sig_figs(V, precision), "Episode_lenght": sig_figs(task_info['episode_length'], precision)}
     logger.epoch_info(epoch + 1, **{'J': sig_figs(J, precision), 'R': sig_figs(R, precision), 'E': sig_figs(E, precision), 'V': sig_figs(V, precision), 'Episode_lenght': sig_figs(task_info['episode_length'], precision)})
     for name, value in task_info['constraints'].items():
@@ -17,7 +17,7 @@ def log_info(logger, rl_agent, epoch, J, R, E, V, task_info, precision=5):
         for k, v in value.items():
             costr_dict_wb[f"Constraint/{name}/{k}"] = sig_figs(v, precision)
             costr_dict[f"{name}/{k}"] = sig_figs(v, precision)
-        if value['num_violation'] > 0 and epoch > 0:
+        if log_agent and value['num_violation'] > 0 and epoch > 0:
             logger.log_agent(rl_agent, str(epoch + 1) + '_' + name)
         logger.epoch_info(epoch + 1, **costr_dict)
         log_dict.update(costr_dict_wb)

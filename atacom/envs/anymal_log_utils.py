@@ -23,7 +23,7 @@ def get_dataset_info(dataset):
         info['constraints'][key] = {
                 'violation_mean': dataset.info[key][bool_violation].mean().item() if bool_violation.any() else 0.,
                 # 'violation_std': dataset.info[key][bool_violation].std().item() if bool_violation.any() else 0.,
-                'num_violation': bool_violation.any(dim=1).sum().item(),
+                # 'num_violation': bool_violation.any(dim=1).sum().item(),
                 'average_violation': bool_violation.any(dim=1).float().mean().item()
         }
 

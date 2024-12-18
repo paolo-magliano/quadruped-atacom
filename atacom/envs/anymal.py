@@ -20,12 +20,9 @@ class AnymalEnv(IsaacEnv):
         self._model_data = [self._model.createData() for _ in range(cfg['num_envs'])]
         self._last_q = torch.zeros_like(self._task._anymals.get_joint_positions())
         self._update_model_data(self._task._anymals.get_joint_positions().clone())
-        self._leg_base = {
-            'LF': H(self._model_data[0].oMf[self._model.getFrameId('LF_HIP')].rotation, self._model_data[0].oMf[self._model.getFrameId('LF_HIP')].translation),
-            'LH': H(self._model_data[0].oMf[self._model.getFrameId('LH_HIP')].rotation, self._model_data[0].oMf[self._model.getFrameId('LF_HIP')].translation),
-            'RF': H(self._model_data[0].oMf[self._model.getFrameId('RF_HIP')].rotation, self._model_data[0].oMf[self._model.getFrameId('LF_HIP')].translation),
-            'RH': H(self._model_data[0].oMf[self._model.getFrameId('RH_HIP')].rotation, self._model_data[0].oMf[self._model.getFrameId('LF_HIP')].translation),
-        }
+
+        self._leg_base_H ={frame.split('_')[0]: H_matrix(torch.eye(3), self._model_data[0].oMf[self._model.getFrameId(frame)].translation) for frame in ['LF_HIP', 'LH_HIP', 'RF_HIP', 'RH_HIP']}
+        self._leg_base_Ad = {k: Ad_matrix(v) for k, v in self._leg_base_H.items()}
 
         self.constraints_logger = AnymalConstrLogger(cfg['num_envs'])
 
@@ -97,29 +94,27 @@ class AnymalEnv(IsaacEnv):
                 pin.updateFramePlacements(self._model, self._model_data[i])
         
     def _relative_link(self, data, link_name):
-        assert link_name.split('_')[0] in self._leg_base
+        assert link_name.split('_')[0] in self._leg_base_H
         assert data.oMf[self._model.getFrameId('anymal')] == data.oMf[self._model.getFrameId('universe')]
         link_idx = self._model.getFrameId(link_name)
         Rl = data.oMf[link_idx].rotation
         tl = data.oMf[link_idx].translation
-        Hl = H(Rl, tl)
-        Hb = self._leg_base[link_name.split('_')[0]]
+        Hl = H_matrix(Rl, tl)
+        Hb = self._leg_base_H[link_name.split('_')[0]]
 
-        return Hl # torch.matmul(torch.inverse(Hb), Hl)
+        return torch.matmul(torch.inverse(Hb), Hl)
 
     
     def _J_relative_link(self, q, data, link_name):
-        assert link_name.split('_')[0] in self._leg_base
+        assert link_name.split('_')[0] in self._leg_base_Ad
         link_idx = self._model.getFrameId(link_name)
         
         Jl = pin.computeFrameJacobian(self._model, data,  q.detach().cpu().numpy(), link_idx, pin.LOCAL_WORLD_ALIGNED)
 
-        # Understand if it is correct
-        # R_leg = self._leg_base[link_name.split('_')[0]][:3, :3]
-        # J_rel_t = torch.matmul(R_leg.T, torch.tensor(Jl[:3, :]))
-        # J_rel_R = torch.matmul(R_leg.T, torch.tensor(Jl[3:, :]))
+        Ad_b = self._leg_base_Ad[link_name.split('_')[0]]
 
-        return torch.tensor(Jl) 
+        #TODO Check wih finite difference if torch.inverse(Ad_b) or Ad_b
+        return torch.matmul(torch.inverse(Ad_b), torch.tensor(Jl))
     
     def step_all(self, env_mask, action):
         obs, reward, done, info = super().step_all(env_mask, action)
@@ -129,5 +124,18 @@ class AnymalEnv(IsaacEnv):
         #     info[i].update(costr_info[i].copy())
         return obs, reward, done, costr_info.copy()
 
-def H(R, t):
-    return torch.cat([torch.cat([torch.tensor(R), torch.tensor(t).unsqueeze(1)], dim=1), torch.tensor([0., 0., 0., 1.]).unsqueeze(0)], dim=0)
+def H_matrix(R, t):
+    R = torch.tensor(R) if not isinstance(R, torch.Tensor) else R
+    t = torch.tensor(t) if not isinstance(t, torch.Tensor) else t
+    return torch.cat([torch.cat([R, t.unsqueeze(1)], dim=1), torch.tensor([0., 0., 0., 1.]).unsqueeze(0)], dim=0)
+
+def Ad_matrix(H):
+    H = torch.tensor(H) if not isinstance(H, torch.Tensor) else H
+    R = H[:3, :3]
+    t = H[:3, 3]
+    t_R = skew_matrix(t) @  R
+    Ad = torch.cat([torch.cat([R, t_R], dim=1), torch.cat([torch.zeros(3, 3), R], dim=1)], dim=0)
+    return Ad
+
+def skew_matrix(v):
+    return torch.tensor([[0., -v[2], v[1]], [v[2], 0., -v[0]], [-v[1], v[0], 0.]])
