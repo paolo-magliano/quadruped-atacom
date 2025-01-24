@@ -26,3 +26,7 @@
     cd SafeLocomotion
     PY experiments/isaac_atacom.py
     ```
+
+## Issues
+### Anymal C
+The implementation of the Anymal C Env is not working. don't use it.

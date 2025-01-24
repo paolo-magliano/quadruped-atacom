@@ -6,20 +6,20 @@ normalize_state: False
 
 policy:
   std_0: 1.
-  n_features: [256, 128, 64]
-  activation: leaky_relu
+  n_features: [512, 256, 128]
+  activation: relu
 
 critic:
-  n_features: [256, 128, 64]
-  activation: leaky_relu
+  n_features: [512, 256, 128]
+  activation: relu
   batch_size: 24576 # 4096 * 6
   optimizer:
     params:
-      lr: 3e-4
+      lr: 1e-4
 
 actor_opt:
   params:
-    lr: 3e-4
+    lr: 1e-4
 
 params:
   atacom_enable: ${atacom.enable}
@@ -27,7 +27,7 @@ params:
   batch_size: 24576 # 4096 * 6
   eps_ppo: 0.2
   lam: 0.95
-  ent_coeff: 0.0
+  ent_coeff: 0.01
   critic_fit_params:
 
   

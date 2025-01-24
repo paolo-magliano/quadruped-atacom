@@ -1,0 +1,84 @@
+import os
+from tqdm import tqdm
+import torch
+import wandb
+
+from mushroom_rl.core import VectorCore, Logger
+from mushroom_rl.utils.torch import TorchUtils
+
+import hydra
+from omegaconf import DictConfig
+from omniisaacgymenvs.utils.hydra_cfg.reformat import omegaconf_to_dict
+from omniisaacgymenvs.utils.hydra_cfg.hydra_utils import *
+
+from rl_util.build_rl_agent import build_rl_agent
+from rl_util.compute_metric import compute_metrics
+
+from experiments.util.log_info import wandb_init, log_info
+
+from atacom.envs.a1 import A1Env
+from atacom_a1 import build_atacom_agent
+
+import cProfile
+import pstats
+
+@hydra.main(config_name="config", config_path="./cfg", version_base="1.1")
+def experiment(cfg: DictConfig) -> None:
+
+    cfg_dict = omegaconf_to_dict(cfg)
+
+    TorchUtils.set_default_device(cfg_dict['rl_device'])
+    torch.manual_seed(cfg_dict['seed'])
+
+    logger = Logger(log_name=cfg_dict['task_name'], results_dir=cfg_dict['results_dir'], seed=cfg_dict['seed'], use_timestamp=True)
+    wandb_run = wandb_init(cfg_dict)
+
+    env, env_info = A1Env.build_env(cfg_dict)
+    
+    cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])
+    cfg_dict['atacom']['lambda_c'] = 0.5 / env.dt
+    
+    rl_agent = build_rl_agent(env.info, cfg_dict['train'])
+
+    if cfg_dict['atacom']['enable']:
+        atacom_rl_agent = build_atacom_agent(rl_agent, env_info, cfg_dict['atacom'])
+    else:
+        atacom_rl_agent = rl_agent
+
+    core = VectorCore(atacom_rl_agent, env)
+
+    J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'])
+    best_R = -float('inf')
+
+    # Write logging
+    log_dict = log_info(logger, rl_agent, -1, J, R, E, V, task_info)
+    wandb.log(log_dict, step=0)
+    profile = cProfile.Profile()
+    profile.enable()
+    if not cfg_dict['test']:
+        for epoch in tqdm(range(cfg_dict['n_epochs']), disable=False, leave=False):           
+            core.learn(**cfg_dict['learn'])
+
+            J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'])
+
+            # Write logging
+            log_dict = log_info(logger, rl_agent, epoch, J, R, E, V, task_info)
+            wandb.log(log_dict, step=epoch + 1)
+                    
+            if R > best_R:
+                best_R = R
+                logger.log_best_agent(rl_agent, R)
+
+            if (epoch + 1) % 10 == 0:
+                logger.log_agent(rl_agent, epoch + 1)
+
+        wandb_run.finish()
+    if os.path.exists(logger._results_dir) and os.path.isdir(logger._results_dir) and not os.listdir(logger._results_dir):
+        os.rmdir(logger._results_dir)
+    
+    profile.disable()
+    stats = pstats.Stats(profile).sort_stats('cumtime')
+    stats.print_stats(100)
+
+if __name__ == '__main__':
+    experiment()

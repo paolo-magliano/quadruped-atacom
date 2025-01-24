@@ -1,6 +1,7 @@
 import torch
+import matplotlib.pyplot as plt
 
-class AnymalConstrLogger:
+class ConstrLogger:
     def __init__(self, num_envs):
         self.data = [{} for _ in range(num_envs)]
 
@@ -18,7 +19,7 @@ class AnymalConstrLogger:
 
 def get_dataset_info(dataset):
     info = { 'constraints': {} }
-    for key in dataset.info.keys():
+    for key in dataset.info.keys():       
         bool_violation = dataset.info[key] > 0
         info['constraints'][key] = {
                 'violation_mean': dataset.info[key][bool_violation].mean().item() if bool_violation.any() else 0.,

@@ -1,21 +1,35 @@
 
 # Task name - used to pick the class to load
-task_name: ${task.name}
+task_name: A1
 
 # if set to positive integer, overrides the default number of environments
-num_envs: 1024
+num_envs: 4096
 
 # seed - set to -1 to choose random seed
 seed: 0
 # set to True for deterministic performance
 torch_deterministic: False
 
-n_epochs: 300
-quiet: True
+n_epochs: 100
+horizon: 1000
+quiet: False
+record: False
 learn:
-  n_steps: 98304 # 4096 * 24
+  n_steps: 4915200 # 4096 * 24 * 50
   n_steps_per_fit: 98304 # 4096 * 24
   quiet: ${quiet}
+
+
+control:
+  type: velocity # 'position' or 'velocity' or 'torque'
+  # p_gains: 1.
+  # d_gains: 1e-4
+  # action_scale: 5.
+
+  # type: position # 'position' or 'velocity' or 'torque'
+  p_gains: 20.0
+  d_gains: 0.5
+  action_scale:  15. # 0.25
 
 ## Device config
 physics_engine: 'physx'
@@ -41,13 +55,17 @@ test: False
 checkpoint: ''
 # evaluate checkpoint
 eval:
-  n_steps: 65536 # 64 * 1024
+  # n_episodes: 256
+  n_steps: 409600
   quiet: ${quiet}
+  render: False
+  record: False
+
 # Set to enable debugging
 debug: False 
 
 # disables rendering
-headless: False
+headless: True
 # enables native livestream
 enable_livestream: False
 # timeout for MT script
@@ -70,18 +88,18 @@ urdf_filepath: ''
 
 results_dir: './logs'
 wandb:
-  activate: False
-  key: '' #YOUR_WANDB_API
+  activate: True
+  key: '64d1b8769f524f18c3c9c53265dbde91917f7cac'  #YOUR_WANDB_API
   group: ''
-  name: '${task.name}_${seed}'
+  name: '${task_name}_${seed}'
   entity: 'paolo_magliano'
-  project: 'ATACOM_${task.name}'
+  project: 'ATACOM_${task_name}'
 
 # set default task and default training config based on task
 defaults:
   - _self_
-  - task: Anymal
-  - train: ${task}PPO
+  # - task: A1
+  - train: A1PPO
   - override hydra/job_logging: disabled
 
 # set the directory where the output files get saved

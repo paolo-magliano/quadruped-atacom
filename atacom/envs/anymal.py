@@ -2,7 +2,9 @@ import torch
 import pinocchio as pin
 
 from mushroom_rl.environments.isaac_env import IsaacEnv
-from atacom.envs.anymal_log_utils import AnymalConstrLogger
+
+from atacom.envs.costr_log_utils import ConstrLogger
+from atacom.envs.lie_group_utils import SE3
 
 class AnymalEnv(IsaacEnv):
     def __init__(self, cfg=None, headless=False, backend='torch'):
@@ -14,7 +16,7 @@ class AnymalEnv(IsaacEnv):
         if cfg['urdf_filepath']:
             self.urdf_filepath = cfg['urdf_filepath']
         else:
-            self.urdf_filepath = 'atacom/envs/urdf/anymal.urdf'
+            self.urdf_filepath = 'atacom/envs/assets/anymal.urdf'
 
         self._model = pin.buildModelFromUrdf(self.urdf_filepath)
         self._model_data = [self._model.createData() for _ in range(cfg['num_envs'])]
@@ -24,7 +26,7 @@ class AnymalEnv(IsaacEnv):
         self._leg_base_H ={frame.split('_')[0]: H_matrix(torch.eye(3), self._model_data[0].oMf[self._model.getFrameId(frame)].translation) for frame in ['LF_HIP', 'LH_HIP', 'RF_HIP', 'RH_HIP']}
         self._leg_base_Ad = {k: Ad_matrix(v) for k, v in self._leg_base_H.items()}
 
-        self.constraints_logger = AnymalConstrLogger(cfg['num_envs'])
+        self.constraints_logger = ConstrLogger(cfg['num_envs'])
 
         # Repalce limits with self._task._anymals
         # num_dof
@@ -95,14 +97,21 @@ class AnymalEnv(IsaacEnv):
         
     def _relative_link(self, data, link_name):
         assert link_name.split('_')[0] in self._leg_base_H
-        assert data.oMf[self._model.getFrameId('anymal')] == data.oMf[self._model.getFrameId('universe')]
         link_idx = self._model.getFrameId(link_name)
         Rl = data.oMf[link_idx].rotation
         tl = data.oMf[link_idx].translation
         Hl = H_matrix(Rl, tl)
         Hb = self._leg_base_H[link_name.split('_')[0]]
 
-        return torch.matmul(torch.inverse(Hb), Hl)
+        # Ad_b = self._leg_base_Ad[link_name.split('_')[0]]
+        # inv = torch.inverse(Ad_b)
+        # J = SE3.Jr_xy(Hl, Hb)
+        # dif = torch.abs(J - inv)
+        # min = torch.min(dif)
+        # mean = torch.mean(dif)
+        # max = torch.max(dif)
+
+        return Hl # torch.matmul(torch.inverse(Hb), Hl)
 
     
     def _J_relative_link(self, q, data, link_name):
@@ -111,10 +120,10 @@ class AnymalEnv(IsaacEnv):
         
         Jl = pin.computeFrameJacobian(self._model, data,  q.detach().cpu().numpy(), link_idx, pin.LOCAL_WORLD_ALIGNED)
 
-        Ad_b = self._leg_base_Ad[link_name.split('_')[0]]
+        # Ad_b = self._leg_base_Ad[link_name.split('_')[0]]
 
-        #TODO Check wih finite difference if torch.inverse(Ad_b) or Ad_b
-        return torch.matmul(torch.inverse(Ad_b), torch.tensor(Jl))
+        #TODO Check with finite difference if torch.inverse(Ad_b) or Ad_b
+        return torch.tensor(Jl) # torch.matmul(torch.inverse(Ad_b), torch.tensor(Jl))
     
     def step_all(self, env_mask, action):
         obs, reward, done, info = super().step_all(env_mask, action)

@@ -11,14 +11,12 @@ class AtacomPPO(PPO):
         super().__init__(mdp_info, policy, actor_optimizer, critic_params,
             n_epochs_policy, batch_size, eps_ppo, lam, ent_coeff,
             critic_fit_params)
-        self._atacom_enable = atacom_enable
-        
+        self._atacom_enable = atacom_enable       
 
     def fit(self, dataset):
         state, action, reward, next_state, absorbing, last = dataset.parse(to='torch')
         state, next_state, state_old = self._preprocess_state(state, next_state)
 
-        # Use the next policy state to retrive the original rl action
         if self._atacom_enable:
             _ , action = dataset.parse_policy_state(to='torch')
 
@@ -31,12 +29,13 @@ class AtacomPPO(PPO):
 
         old_pol_dist = self.policy.distribution_t(state_old)
         old_log_p = old_pol_dist.log_prob(action)[:, None].detach()
+        #self.old_old_log_min = old_log_p.min()
 
         self._V.fit(state, v_target, **self._critic_fit_params)
 
         self._update_policy(state, action, adv, old_log_p)
 
         # Print fit information
-        self._log_info(dataset, state, v_target, old_pol_dist)
+        self._log_info(dataset, state, v_target, old_pol_dist, old_log_p, (state - next_state).mean())
         self._iter += 1
 

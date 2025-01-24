@@ -1,5 +1,5 @@
 import torch
-from atacom.envs.anymal_log_utils import get_dataset_info
+from atacom.envs.costr_log_utils import get_dataset_info
 
 def get_init_states(dataset):
     pick = True

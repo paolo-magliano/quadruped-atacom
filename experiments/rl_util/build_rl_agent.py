@@ -8,7 +8,7 @@ from mushroom_rl.rl_utils.preprocessors import MinMaxPreprocessor
 from atacom.agent_builder.atacom_ppo import AtacomPPO
 from mushroom_rl.policy.torch_policy import GaussianTorchPolicy
 
-from .network import ActorNetwork, ActorNetwork
+from .network import Network
 
 
 def _get_file_by_postfix(parent_dir, postfix):
@@ -37,13 +37,13 @@ def build_rl_agent(mdp_info, cfg_dict):
 def _build_agent_PPO(mdp_info, cfg_dict):
     cfg_dict['actor_opt']['class'] = optim.Adam
     
-    cfg_dict['critic']['network'] = ActorNetwork
+    cfg_dict['critic']['network'] = Network
     cfg_dict['critic']['optimizer']['class'] = optim.Adam
     cfg_dict['critic']['loss'] = F.mse_loss
     cfg_dict['critic']['input_shape'] = mdp_info.observation_space.shape
     cfg_dict['critic']['output_shape'] = (1,)
     
-    policy = GaussianTorchPolicy(ActorNetwork,
+    policy = GaussianTorchPolicy(Network,
                                  mdp_info.observation_space.shape,
                                  mdp_info.action_space.shape,
                                  **cfg_dict['policy'])

@@ -15,14 +15,14 @@ class ATACOMWrapper(AgentWrapper):
         super().__init__(atacom_controller=atacom_controller, learning_agent=learning_agent, randomize_dynamics=randomize_dynamics)
         
     def _unwrap_state(self, obs):
-        return obs[:, self.env_info['observation_space']['joint_pos_idx']], 0.
+        return obs[:, self.env_info['obs']['joint_pos_idx']], 0.
  
     def _void_action(self):
-        return torch.zeros((self.env_info['num_envs'], self.env_info['action_space']['num']), device=TorchUtils.get_device())
+        return torch.zeros((self.env_info['num_envs'], self.env_info['action']['len']), device=TorchUtils.get_device())
         
 class JointPosConstraint(Constraint):
     def __init__(self, n_joints, joint_limits, logger=None):
-        name = 'joint_pos'
+        name = 'Joint_pos'
         self.n_joints = n_joints
         self.joint_limits = joint_limits
         self.logger = logger
@@ -41,7 +41,7 @@ class JointPosConstraint(Constraint):
         return J_pos.unsqueeze(0).repeat(q.shape[0], 1, 1).to(q.device)
     
 class FootPosConstraint(Constraint):
-    def __init__(self, n_joints, side, get_foot, get_foot_J, alpha=0.3, beta=0.3, min_z=-0.8, max_z=0., logger=None):
+    def __init__(self, n_joints, side, get_foot, get_foot_J, alpha=1.5, beta=1.5, min_z=-0.2, max_z=0., logger=None):
         name = side + '_foot_pos'
         self.n_joints = n_joints
         self.logger = logger
@@ -49,7 +49,7 @@ class FootPosConstraint(Constraint):
         self.get_foot_J = get_foot_J
         self.alpha = alpha
         self.beta = beta
-        self.link_name = side + '_FOOT'
+        self.link_name = side + '_foot'
         self.min_z = min_z
         self.max_z = max_z
         super().__init__(name, dim_q=self.n_joints, dim_k=3, dim_z=0)
@@ -82,18 +82,20 @@ class FootPosConstraint(Constraint):
 
         return torch.stack([J_xy, J_z_high, J_z_low], dim=1).to(q.device)
         
-def build_atacom_agent(rl_agent, dynamics_info, atacom_params):
-    dyn = VelocityControlSystem(dim_q=dynamics_info['n_joints'], vel_limit=dynamics_info['joint_vel_limit'][1])
-    constr_list = ConstraintList(dim_q=dynamics_info['n_joints'])
-    # constr_list.add_constraint(JointPosConstraint(dynamics_info['n_joints'], dynamics_info['joint_pos_limit'].to(TorchUtils.get_device()), logger=dynamics_info['env_info']['logger']))
+def build_atacom_agent(rl_agent, env_info, atacom_params):
+    dyn = VelocityControlSystem(dim_q=env_info['n_joints'], vel_limit=env_info['joint_vel_limit'][1])
+    constr_list = ConstraintList(dim_q=env_info['n_joints'])
+    # constr_list.add_constraint(JointPosConstraint(env_info['robot']['n_joints'], env_info['joint_pos_limit'].to(TorchUtils.get_device()), logger=env_info['logger']))
     
     # No possible action
-    # constr_list.add_constraint(JointPosConstraint(dynamics_info['n_joints'], torch.vstack([torch.tensor([-0.1 for _ in range(dynamics_info['n_joints'])], dtype=torch.float32), torch.tensor([0.1 for _ in range(dynamics_info['n_joints'])], dtype=torch.float32)]).to(TorchUtils.get_device()), logger=dynamics_info['env_info']['logger']))
+    limit = torch.tensor([0.2 for _ in range(env_info['n_joints'])], dtype=torch.float32).to(TorchUtils.get_device())
+    joint_limit = torch.vstack([-limit , limit])
+    #constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger']))
     
-    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'LF', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
-    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'RF', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
-    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'LH', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
-    constr_list.add_constraint(FootPosConstraint(dynamics_info['n_joints'], 'RH', dynamics_info['env_info']['function']['get_relative_link'], dynamics_info['env_info']['function']['get_J_relative_link'], logger=dynamics_info['env_info']['logger']))
+    constr_list.add_constraint(FootPosConstraint(env_info['n_joints'], 'FL', env_info['fun']['get_relative_link'], env_info['fun']['get_J_relative_link'], logger=env_info['logger']))
+    constr_list.add_constraint(FootPosConstraint(env_info['n_joints'], 'FR', env_info['fun']['get_relative_link'], env_info['fun']['get_J_relative_link'], logger=env_info['logger']))
+    constr_list.add_constraint(FootPosConstraint(env_info['n_joints'], 'RL', env_info['fun']['get_relative_link'], env_info['fun']['get_J_relative_link'], logger=env_info['logger']))
+    constr_list.add_constraint(FootPosConstraint(env_info['n_joints'], 'RR', env_info['fun']['get_relative_link'], env_info['fun']['get_J_relative_link'], logger=env_info['logger']))
     atacom_controller = ATACOMController(constr_list, dyn,
                                          slack_beta=atacom_params['slack_beta'],
                                          slack_tol=atacom_params['slack_tol'],
@@ -101,7 +103,7 @@ def build_atacom_agent(rl_agent, dynamics_info, atacom_params):
                                          drift_compensation_type=atacom_params['drift_compensation_type'],
                                          drift_clipping=atacom_params['drift_clipping'],
                                          lambda_c=atacom_params['lambda_c'])
-    return ATACOMWrapper(env_info=dynamics_info['env_info'],
+    return ATACOMWrapper(env_info=env_info,
                          atacom_controller=atacom_controller,
                          learning_agent=rl_agent,
                          randomize_dynamics=atacom_params['randomize_dynamics'])
