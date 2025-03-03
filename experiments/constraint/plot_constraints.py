@@ -24,42 +24,94 @@ def main(cfg: DictConfig):
 
     cfg_dict = omegaconf_to_dict(cfg)
     cfg_dict['num_envs'] = 1
+    cfg_dict['headless'] = True
 
     env, env_info, atacom_controller = get_atacom(cfg_dict)
+
+    j_inv = True
 
     n_points = 20
     joint_idx = [0, 1, 2]
     constr_idx = [0, 1, 2]
+    slack_linspace = [torch.linspace(0.1, 1., n_points)]
 
-    limit_linspace = [torch.linspace(env_info['joint_pos_limit'][0][i], env_info['joint_pos_limit'][1][i], n_points) for i in joint_idx]
-    # Joint pos   
-    q_val = torch.tensor(list(itertools.product(*limit_linspace))).to('cuda')
-    q = torch.zeros((q_val.shape[0], env_info['n_joints'])).to('cuda')
-    q[:, joint_idx] = q_val
+    if len(slack_linspace) > 0:
+        joint_comb = [(j, None) for j in joint_idx]
+    else:
+        joint_comb = list(itertools.combinations(joint_idx, 2)) 
 
-    q = q.unsqueeze(1).repeat(1, cfg_dict['num_envs'], 1)
+    q_pairs, xyz_pairs, k_val_pairs, J_inv_pairs, slack_pairs, m_val_pairs, slack_axis_pairs = [], [], [], [], [], [], []
 
-    xyz, k_val, J_inv, slack = [], [], [], []
+    for i, j in joint_comb:
+        idx = [x for x in [i, j] if x is not None]
 
-    for i in tqdm.tqdm(range(q.shape[0])):
-        pos = env_info['fun']['get_relative_link'](q[i], 'FL_foot')[:, :3, 3]
-        k = atacom_controller.constraints.k(q[i])
-        mu = atacom_controller.get_mu(k)
-        Ju = atacom_controller.J_u(atacom_controller.J_G(q[i], None), mu)
+        limit_linspace = [torch.linspace(env_info['joint_pos_limit'][0][x], env_info['joint_pos_limit'][1][x], n_points) for x in idx]
+        # Joint pos   
+        q_slack = torch.tensor(list(itertools.product(*[*slack_linspace, *limit_linspace]))).to('cuda')
+        q_val = q_slack[:, len(slack_linspace):]
+        slack_val = q_slack[:, :len(slack_linspace)]  
+        q = ((env_info['joint_pos_limit'][0] + env_info['joint_pos_limit'][1]) / 2).clone().to('cuda').unsqueeze(0).repeat(q_val.shape[0], 1)
+        q[:, idx] = q_val
 
-        xyz.append(pos)
-        k_val.append(k)
-        J_inv.append(-torch.pinverse(Ju) * (k + mu))
-        slack.append(mu)
+        q = q.unsqueeze(1).repeat(1, cfg_dict['num_envs'], 1)
+        slack_val = slack_val.unsqueeze(1).repeat(1, cfg_dict['num_envs'], len(constr_idx))
 
-    q = q.cpu().numpy()
-    xyz = torch.stack(xyz, dim=0).cpu().numpy()
-    k_val = torch.stack(k_val, dim=0).cpu().numpy()
-    J_inv = torch.stack(J_inv, dim=0).cpu().numpy()
-    slack = torch.stack(slack, dim=0).cpu().numpy()
+        xyz, k_val, J_inv, slack, m_val = [], [], [], [], []
 
-    # constraint_plot(q[:, 0, :3].squeeze(), k_val[:, 0].squeeze(), J_inv[:, 0, :3].squeeze(), slack[:, 0].squeeze())
-    contour_plot(q[:, 0, joint_idx], k_val[:, 0, constr_idx], J_inv[:, 0, joint_idx][:, :, constr_idx], name='FL_foot')
+        for i in tqdm.tqdm(range(q.shape[0])):
+            pos = env_info['fun']['get_relative_link'](q[i], 'FL_foot')[:, :3, 3]
+            k = atacom_controller.constraints.k(q[i])
+            if len(slack_linspace) > 0:
+                mu = slack_val[i]
+            else:
+                mu = atacom_controller.get_mu(k)
+            A_mu = atacom_controller.slack.alpha(mu)
+            Ju = atacom_controller.constraints.J_q(q[i], None)
+            # Ju = atacom_controller.J_u(atacom_controller.J_G(q[i], None), mu)
+
+            xyz.append(pos)
+            k_val.append(k)
+            if j_inv:
+                J_inv.append(-torch.linalg.pinv(Ju) @ (mu + k)[:, :, None])
+            else:
+                J_inv.append(Ju)
+
+            slack.append(mu)
+            m_val.append(k + torch.diagonal(A_mu, dim1=1, dim2=2))
+
+        q = q.cpu().numpy()[:, 0, idx]
+
+        xyz = torch.stack(xyz, dim=0).cpu().numpy()[:, 0, constr_idx]
+        k_val = torch.stack(k_val, dim=0).cpu().numpy()[:, 0, constr_idx]
+        if len(slack_linspace) > 0:
+            if j_inv:
+                J_inv_s = [torch.stack(J_inv, dim=0)[:, 0, idx + [env_info['n_joints'] + c]][:, :, [c]] for c in constr_idx]
+                J_inv = torch.cat(J_inv_s, dim=-1).cpu().numpy()
+            else:
+                J_inv_s = [torch.stack(J_inv, dim=0).cpu()[:, 0, [c]][:, :, idx + [env_info['n_joints'] + c]] for c in constr_idx]
+                J_inv = torch.cat(J_inv_s, dim=-2).numpy()
+        else:
+            if j_inv:
+                J_inv = torch.stack(J_inv, dim=0).cpu().numpy()[:, 0, idx][:, :, constr_idx]
+            else:
+                J_inv = torch.stack(J_inv, dim=0).cpu().numpy()[:, 0, constr_idx][:, :, idx]
+        slack = torch.stack(slack, dim=0).cpu().numpy()[:, 0, constr_idx]
+        m_val = torch.stack(m_val, dim=0).cpu().numpy()[:, 0, constr_idx]
+        slack_axis = np.hstack([q, slack_val.cpu().numpy()[:, 0, :1]])
+
+        q_pairs.append(q.copy())
+        xyz_pairs.append(xyz.copy())
+        k_val_pairs.append(k_val.copy())
+        J_inv_pairs.append(J_inv.copy())
+        slack_pairs.append(slack.copy())
+        m_val_pairs.append(m_val.copy())
+        slack_axis_pairs.append(slack_axis.copy())
+
+    # constraint_plot(q_pairs, k_val_pairs, slack_pairs)
+    if len(slack_linspace) > 0:
+        contour_plot(joint_comb, slack_axis_pairs, m_val_pairs, J_inv_pairs, name='FL_foot_slack', j_inv=j_inv)
+    else:
+        contour_plot(joint_comb, q_pairs, k_val_pairs, J_inv_pairs, name='FL_foot', j_inv=j_inv)
     # contour_plot(q[:, 0, joint_idx], xyz[:, 0, constr_idx], name='FL_foot_pos')
 
 def get_atacom(cfg_dict):
@@ -69,7 +121,7 @@ def get_atacom(cfg_dict):
     dyn = VelocityControlSystem(dim_q=env_info['n_joints'], vel_limit=env_info['joint_vel_limit'][1])
     constr_list = ConstraintList(dim_q=env_info['n_joints'])
 
-    constr_pos = FootPosConstraint(env_info['n_joints'], 'FL', env_info['fun']['get_relative_link'], env_info['fun']['get_J_relative_link'], alpha=0.2, beta=0.4, min_z=-0.1, max_z=0.1)
+    constr_pos = FootPosConstraint(env_info['n_joints'], 'FL', env_info['fun']['get_relative_link'], env_info['fun']['get_J_relative_link'], env_info['fun']['get_commands'], alpha=0.2, beta=0.4, min_z=-0.1, max_z=0.1)
     constr_list.add_constraint(constr_pos)
 
     perc = 0.2
@@ -91,46 +143,46 @@ def get_atacom(cfg_dict):
     
     return env, env_info, atacom_controller
 
-def constraint_plot(q, k_val, J_inv, slack, num_col=3):
-    row = ceil(q.shape[-1] / num_col)
-    col = min(q.shape[-1], num_col)
+def constraint_plot(q, k_val=None, slack=None):
+    row = k_val[0].shape[-1] if k_val is not None else slack[0].shape[-1]
+    col = len(q)
 
     fig, axs = plt.subplots(row, col, figsize=(5*col, 5*row))
 
     for i in range(row):
         for j in range(col):
-            if i * col + j < q.shape[-1]:
-                ax = axs[i, j] if row > 1 else axs[j]
-                ax.plot(q[:, i * col + j], k_val, label='k')
-                ax.plot(q[:, i * col + j], slack, label='slack')
-                ax.legend()
-                ax.set_title(f'Joint {i * col + j}')
-                ax.set_xlabel('Joint pos')
-                ax.set_ylabel('Constraint value')
+            ax = axs.flatten()[i * col + j] if row > 1 or col > 1 else axs
+            if k_val is not None:
+                ax.plot(q[j], k_val[j][:, i], label='k')
+            if slack is not None:
+                ax.plot(q[j], slack[j][:, i], label='slack')
+            ax.legend()
+            if i == 0:
+                ax.set_title(f'Joint {j}')
+            ax.set_xlabel('Joint pos')
+            ax.set_ylabel('Constraint value')
 
     fig.savefig('plot/constraint/constraint_plot.png')
 
-def contour_plot(q, k_val, J=None, name=None):
-    comb_idx = list(itertools.combinations(range(q.shape[-1]), 2))  
-    row = k_val.shape[-1] 
-    col = len(comb_idx)
+def contour_plot(comb, q, k_val, J=None, name=None, j_inv=True):   
+    row = k_val[0].shape[-1] 
+    col = len(comb)
     fig, axs = plt.subplots(row, col, figsize=(5*col, 5*row))
     
     for i in range(row):
-        if J is not None:
-            q_pair, k_pair, J_pair = get_pair(q, k_val[:, i], J[:, :, i]) 
-        else:
-            q_pair, k_pair = get_pair(q, k_val[:, i])
         for j in range(col):
             ax = axs.flatten()[i * col + j] if row > 1 or col > 1 else axs
-            contour(ax, q_pair[j][:, 0], q_pair[j][:, 1], k_pair[j])
+            contour(ax, q[j][:, 0], q[j][:, 1], k_val[j][:, i])
             if J is not None:
-                ax.quiver(q_pair[j][:, 0], q_pair[j][:, 1], J_pair[j][:, 0], J_pair[j][:, 1])
-            ax.set_xlabel(f'Joint {comb_idx[j][0]}')
-            ax.set_ylabel(f'Joint {comb_idx[j][1]}')
+                if j_inv:
+                    ax.quiver(q[j][:, 0], q[j][:, 1], J[j][:, 0, i], J[j][:, 1, i])
+                else:
+                    ax.quiver(q[j][:, 0], q[j][:, 1], J[j][:, i, 0], J[j][:, i, 1])
+            ax.set_xlabel(f'Joint {comb[j][0]}')
+            ax.set_ylabel(f'Joint {comb[j][1]}')
 
     fig.suptitle('Constraint value')
-    fig.savefig(f'plot/constraint/{name + "_" if name else ""}contour_plot.png')
+    fig.savefig(f'plot/constraint/{name + "_" if name else ""}{"J_inv_" if j_inv else "J_"}contour_plot.png')
 
 def contour(ax, x, y, val):
     n_x = np.unique(x).shape[0]
