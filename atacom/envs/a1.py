@@ -1,72 +1,40 @@
 import torch
 import pinocchio as pin
 
-from mushroom_rl.environments.isaacsim_envs.isaac_a1_legged_gym_pos import IsaacA1Description as IsaacA1DescriptionPos
-from mushroom_rl.environments.isaacsim_envs.isaac_a1_legged_gym import IsaacA1Description as IsaacA1DescriptionEff
+from mushroom_rl.environments.isaacsim_envs.isaac_a1_pos_action import A1Pos 
+from mushroom_rl.environments.isaacsim_envs.isaac_a1_vel_action import A1Vel
+from mushroom_rl.environments.isaacsim_envs.isaac_a1_legged_gym import IsaacA1Description as A1Eff
 from mushroom_rl.utils.isaac_sim import ObservationType
 from mushroom_rl.rl_utils.spaces import Box
 
 from atacom.envs.costr_log_utils import ConstrLogger
 
-class A1Eff(IsaacA1DescriptionEff):
-    def __init__(self, num_envs, horizon, headless, control_type='velocity', p_gains=1., d_gains=1e-5, action_scale=5.):
-        super().__init__(num_envs, horizon, headless)
-        self._control_type = control_type # 'position' or 'velocity' or =
-        self._p_gains = p_gains
-        self._d_gains = d_gains
-        self._action_scale = action_scale
+class A1EffVel(A1Eff):
+    def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(40, 0, 4), camera_target=(30, 0, 0)):
+        super().__init__(num_envs, horizon, headless, domain_randomization, camera_position, camera_target)
+        self._action_scale = 1.5
+        action_limit = self._task.get_joint_max_velocities() / self._action_scale
+        self._mdp_info.action_space = Box(-action_limit, action_limit, data_type=action_limit.dtype)
 
-        if self._control_type=="velocity":
-            self._mdp_info.action_space = Box(-self._task.get_joint_max_velocities(), self._task.get_joint_max_velocities())
-
-    def setup(self, env_indices, obs):
-        super().setup(env_indices, obs)
-        
-        if self._control_type=="velocity":
-            # self.last_joint_vel = self.observation_helper.get_by_type_from_obs(self._task.get_observations(), ObservationType.JOINT_VEL)
-            obs = self._create_observation(self.observation_helper.build_obs(self._task.get_observations(clone=False)))
-            self.joint_pos_des = self.observation_helper.get_by_type_from_obs(obs, ObservationType.JOINT_POS)
+        self._integral_error = torch.zeros((num_envs, action_limit.shape[0]), device=self._device)
 
     def _compute_torque(self, action, joint_vels, joint_pos):
-        actions_scaled = action * self._action_scale
+        self._torques = 1. * (self._action_scale * action - joint_vels) + 0.1 * self._integral_error
 
-        if self._control_type=="position":
-            self._torques = self._p_gains*(actions_scaled + self._default_joint_angles - joint_pos) - self._d_gains*joint_vels
-        elif self._control_type=="velocity":
-            # self._torques = self._p_gains*(actions_scaled - joint_vels) - self._d_gains*(joint_vels - self.last_joint_vel) / self._timestep
-            # self.last_joint_vel = joint_vels
-            self.joint_pos_des += actions_scaled * self._timestep
-            self._torques = self._p_gains*(self.joint_pos_des - joint_pos) - self._d_gains*joint_vels
-        else:
-            raise NameError(f"Unknown controller type: {self._control_type}")
+        not_sat = self._torques.abs() < self._effort_limit
 
-        self._torques = torch.clip(self._torques, -self._effort_limit, self._effort_limit)
-    
+        self._torques = self._torques.clamp(-self._effort_limit, self._effort_limit)
+        self._integral_error[not_sat] += self._action_scale * action[not_sat] - joint_vels[not_sat]
+
         return self._torques
+    
+    def reset_all(self, env_mask, state=None):
+        self._integral_error[env_mask] = 0.
+        return super().reset_all(env_mask, state)
 
-class A1Pos(IsaacA1DescriptionPos):
-    def __init__(self, num_envs, horizon, headless, control_type):
-        super().__init__(num_envs, horizon, headless)
-        self._control_type = control_type
-        if self._control_type=="velocity":
-            self._mdp_info.action_space = Box(-self._task.get_joint_max_velocities(), self._task.get_joint_max_velocities())
-
-    def setup(self, env_indices, obs):
-        super().setup(env_indices, obs)
-        if self._control_type=="velocity":
-            obs = self._create_observation(self.observation_helper.build_obs(self._task.get_observations(clone=False)))
-            self.joint_pos_des = self.observation_helper.get_by_type_from_obs(obs, ObservationType.JOINT_POS)
-
-    def _compute_action(self, obs, action):
-        if self._control_type=="velocity":
-            self.joint_pos_des += action * 1.5 * self._timestep
-            return self.joint_pos_des
-        return super()._compute_action(obs, action)
-
-class A1Env(A1Pos):
+class A1Env(A1EffVel):
     def __init__(self, cfg):
-        super().__init__(cfg['num_envs'], cfg['horizon'], cfg['headless'], cfg['control']['type']) #, cfg['control']['p_gains'], cfg['control']['d_gains'], cfg['control']['action_scale'])
-
+        super().__init__(cfg['num_envs'], cfg['horizon'], cfg['headless']) 
         if cfg['urdf_filepath']:
             self.urdf_filepath = cfg['urdf_filepath']
         else:
@@ -78,7 +46,7 @@ class A1Env(A1Pos):
         self._last_q = torch.zeros_like(default_q)
         self._update_model_data(default_q)
 
-        self._leg_base_H ={frame.split('_')[0]: H_matrix(torch.eye(3), self._model_data[0].oMf[self._model.getFrameId(frame)].translation) for frame in ['FL_hip', 'FR_hip', 'RL_hip', 'RR_hip']}
+        self._leg_base_H ={frame.split('_')[0]: H_matrix(torch.eye(3), self._model_data[0].oMf[self._model.getFrameId(frame)].translation) for frame in ['FL_thigh', 'FR_thigh', 'RL_thigh', 'RR_thigh']}
         self._leg_base_Ad = {k: Ad_matrix(v) for k, v in self._leg_base_H.items()}
 
         self.constraints_logger = ConstrLogger(cfg['num_envs'])
@@ -96,6 +64,7 @@ class A1Env(A1Pos):
         self.env_info['action'] = dict()
         self.env_info['action']['len'] = self._mdp_info.action_space.shape[0]
         self.env_info['action']['limit'] = self._mdp_info.action_space
+        self.env_info['action']['idx'] = {s: [i for i, name in enumerate(self._action_spec) if s in name] for s in ['FL', 'FR', 'RL', 'RR']}
 
         self.env_info['obs'] = dict()
         self.env_info['obs']['len'] = self._mdp_info.observation_space.shape[0]
@@ -111,8 +80,11 @@ class A1Env(A1Pos):
         self.env_info['fun'] = dict()
         self.env_info['fun']['get_relative_link'] = self.get_relative_link
         self.env_info['fun']['get_J_relative_link'] = self.get_J_relative_link
+        self.env_info['fun']['get_commands'] = self.get_commands
 
         self.env_info['logger'] = self.constraints_logger
+
+        self.env_info['urdf_path'] = self.urdf_filepath
 
     @classmethod
     def build_env(cls, cfg):
@@ -121,19 +93,18 @@ class A1Env(A1Pos):
     
     def get_relative_link(self, q, link_name):
         self._update_model_data(q)
-        pos = torch.stack([self._relative_link(data, link_name) for data in self._model_data]).type(q.dtype).to(q.device)
+        pos = torch.stack([self._relative_link(self._model_data[i], link_name) for i in range(q.shape[0])]).type(q.dtype).to(q.device)
         return pos
     
     def get_J_relative_link(self, q, link_name):
         self._update_model_data(q)
-        J = torch.stack([self._J_relative_link(q[i], self._model_data[i], link_name) for i in range(len(self._model_data))]).type(q.dtype).to(q.device)
+        J = torch.stack([self._J_relative_link(q[i], self._model_data[i], link_name) for i in range(q.shape[0])]).type(q.dtype).to(q.device)
         return J
     
     def _update_model_data(self, q):
-        assert q.shape[0] == len(self._model_data)
-        if not torch.allclose(q, self._last_q):
+        if not torch.allclose(q.double(), self._last_q.double()):
             self._last_q = q.clone()
-            for i in range(len(self._model_data)):
+            for i in range(q.shape[0]):
                 pin.forwardKinematics(self._model, self._model_data[i], q[i].detach().cpu().numpy())
                 pin.updateFramePlacements(self._model, self._model_data[i])
       
@@ -145,7 +116,7 @@ class A1Env(A1Pos):
         Hl = H_matrix(Rl, tl)
         Hb = self._leg_base_H[link_name.split('_')[0]]
 
-        return Hl # torch.matmul(torch.inverse(Hb), Hl)
+        return torch.matmul(torch.inverse(Hb), Hl)
     
     def _J_relative_link(self, q, data, link_name):
         assert link_name.split('_')[0] in self._leg_base_Ad
@@ -157,6 +128,9 @@ class A1Env(A1Pos):
 
         #TODO Check with finite difference if torch.inverse(Ad_b) or Ad_b
         return torch.tensor(Jl) # torch.matmul(torch.inverse(Ad_b), torch.tensor(Jl))
+    
+    def get_commands(self):
+        return self.commands.clone()
 
     def step_all(self, env_mask, action):
         obs, reward, done, info = super().step_all(env_mask, action)
