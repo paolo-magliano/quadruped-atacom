@@ -5,7 +5,7 @@ import os
 
 from mushroom_rl.core import Agent
 from mushroom_rl.rl_utils.preprocessors import MinMaxPreprocessor
-from atacom.agent_builder.atacom_ppo import AtacomPPO
+from atacom.agent_builder.ppo_atacom import AtacomPPO
 from mushroom_rl.policy.torch_policy import GaussianTorchPolicy
 
 from .network import Network
