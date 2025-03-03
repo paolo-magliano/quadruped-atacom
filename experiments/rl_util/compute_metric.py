@@ -1,5 +1,6 @@
 import torch
 from atacom.envs.costr_log_utils import get_dataset_info
+import matplotlib.pyplot as plt
 
 def get_init_states(dataset):
     pick = True
@@ -51,40 +52,59 @@ def compute_metrics(core, eval_params, atacom_enable):
     
     dataset = core.evaluate(**eval_params)
 
-    if atacom_enable:
-        rl_agent = core.agent.learning_agent
-    else:
-        rl_agent = core.agent
-    J = torch.mean(dataset.compute_J(core.env.info.gamma))
+    # plot_hist(dataset.state.cpu())
+
+    J, R, E, V, task_info = get_metrics(dataset, core.agent, atacom_enable, core.env.info.gamma)
+
+    if hasattr(core.env, 'clear_task_info'):
+        core.env.clear_task_info()
+
+    return J, R, E, V, task_info
+
+def plot_hist(state):
+    pos = state[:, [ 6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28]]
+    fig, axs = plt.subplots(4, 3, figsize=(15, 15))
+    for i in range(4):
+        for j in range(3):
+            axs[i, j].hist(pos[:, i * 3 + j], bins=100)
+
+    plt.savefig("hist.png")
+
+def get_metrics(dataset, agent, atacom_enable, gamma):
+    J = torch.mean(dataset.compute_J(gamma))
     R = torch.mean(dataset.compute_J())
+
+    if atacom_enable:
+        rl_agent = agent.learning_agent
+    else:
+        rl_agent = agent
 
     if hasattr(rl_agent.policy, 'compute_action_and_log_prob'):
         if atacom_enable:
             _, log_prob = rl_agent.policy.compute_action_and_log_prob(
-                core.agent.learning_agent_preprocess(dataset.parse()[0]))
+                agent.learning_agent_preprocess(dataset.parse()[0]))
         else:
             _, log_prob = rl_agent.policy.compute_action_and_log_prob(dataset.parse()[0])
         E = -log_prob.mean()
     else:
         if atacom_enable:
-            E = rl_agent.policy.entropy(core.agent.learning_agent_preprocess(dataset.parse()[0]))
+            E = rl_agent.policy.entropy(agent.learning_agent_preprocess(dataset.parse()[0]))
         else:
             E = rl_agent.policy.entropy(dataset.parse()[0])
 
     Q_info = {}
     if hasattr(rl_agent, "n_quantiles"):
-        Q_stats = compute_V(core.agent, dataset, atacom_enable)
+        Q_stats = compute_V(agent, dataset, atacom_enable)
         Q_info = {"V_mean": Q_stats[0], "V_std": Q_stats[1],
                   "V_median": Q_stats[2], "V_min": Q_stats[3], "V_max": Q_stats[4]}
         V = Q_stats[0]
     else:
-        V = compute_V(core.agent, dataset, atacom_enable)
+        V = compute_V(agent, dataset, atacom_enable)
 
     task_info = get_dataset_info(dataset)
     task_info['episode_length'] = torch.mean(dataset.episodes_length.float()).item()
     task_info.update(Q_info)
 
-    if hasattr(core.env, 'clear_task_info'):
-        core.env.clear_task_info()
-
     return J.item(), R.item(), E.item(), V.item(), task_info
+
+    
