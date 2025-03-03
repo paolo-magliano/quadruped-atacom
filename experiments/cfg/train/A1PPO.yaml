@@ -12,23 +12,25 @@ policy:
 critic:
   n_features: [512, 256, 128]
   activation: relu
-  batch_size: 24576 # 4096 * 6
+  batch_size: 6144 # 4096 * 24 / 16
   optimizer:
     params:
-      lr: 1e-4
+      lr: 1e-3
 
 actor_opt:
   params:
-    lr: 1e-4
+    lr: 1e-3
 
 params:
   atacom_enable: ${atacom.enable}
   n_epochs_policy: 5
-  batch_size: 24576 # 4096 * 6
+  batch_size: 6144 # 4096 * 14 / 16
   eps_ppo: 0.2
   lam: 0.95
   ent_coeff: 0.01
-  critic_fit_params:
+  schedule: 'adaptive' # could be adaptive, fixed
+  desired_kl: 0.01
+  clip_grad_norm: 1.
 
   
   

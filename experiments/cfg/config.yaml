@@ -3,33 +3,22 @@
 task_name: A1
 
 # if set to positive integer, overrides the default number of environments
-num_envs: 4096
+num_envs: 3072
 
 # seed - set to -1 to choose random seed
-seed: 0
+seed: 1
 # set to True for deterministic performance
 torch_deterministic: False
 
-n_epochs: 100
+n_epochs: 30
 horizon: 1000
 quiet: False
+render: False
 record: False
 learn:
   n_steps: 4915200 # 4096 * 24 * 50
   n_steps_per_fit: 98304 # 4096 * 24
   quiet: ${quiet}
-
-
-control:
-  type: velocity # 'position' or 'velocity' or 'torque'
-  # p_gains: 1.
-  # d_gains: 1e-4
-  # action_scale: 5.
-
-  # type: position # 'position' or 'velocity' or 'torque'
-  p_gains: 20.0
-  d_gains: 0.5
-  action_scale:  15. # 0.25
 
 ## Device config
 physics_engine: 'physx'
@@ -54,12 +43,13 @@ test: False
 # used to set checkpoint path
 checkpoint: ''
 # evaluate checkpoint
+complete_eval: True
 eval:
-  # n_episodes: 256
-  n_steps: 409600
+  n_episodes: 256
+  # n_steps: 409600
   quiet: ${quiet}
-  render: False
-  record: False
+  render: ${render}
+  record: ${record}
 
 # Set to enable debugging
 debug: False 
@@ -75,9 +65,9 @@ warp: False
 
 # ATACOM Parameters
 atacom:
-  enable: True
+  enable: True 
   slack_dynamics_type: 'exp'
-  slack_beta: 2
+  slack_beta: 1000
   slack_tol: 1e-6
   randomize_dynamics: False
   double_integration: False
