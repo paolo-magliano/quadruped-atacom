@@ -2,6 +2,8 @@ import torch
 from atacom.envs.costr_log_utils import get_dataset_info
 import matplotlib.pyplot as plt
 
+from experiments.kinematics_a1 import LinkPos
+
 def get_init_states(dataset):
     pick = True
     x_0 = list()
@@ -46,13 +48,14 @@ def compute_V(agent, dataset, atacom_enable):
     return torch.tensor(Q).mean(axis=0)
 
 
-def compute_metrics(core, eval_params, atacom_enable):
+def compute_metrics(core, eval_params, atacom_enable, plot=False, env_info=None):
     if hasattr(core.env, "curriculum_training"):
         core.env.curriculum_training = False
     
     dataset = core.evaluate(**eval_params)
 
-    # plot_hist(dataset.state.cpu())
+    if plot:
+        plot_hist(dataset.state.cpu(), env_info)
 
     J, R, E, V, task_info = get_metrics(dataset, core.agent, atacom_enable, core.env.info.gamma)
 
@@ -61,14 +64,33 @@ def compute_metrics(core, eval_params, atacom_enable):
 
     return J, R, E, V, task_info
 
-def plot_hist(state):
-    pos = state[:, [ 6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28]]
-    fig, axs = plt.subplots(4, 3, figsize=(15, 15))
+def plot_hist(state, env_info):
+    feet_names = ['FL', 'FR', 'RL', 'RR']
+    joint_names = ['Hip', 'Thigh', 'Calf']
+    joint_pos = state[:, [ 6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28]]
+
+    # Plot histogram of joint angles positions
+    fig, axs = plt.subplots(4, 3, figsize=(15, 20))
     for i in range(4):
         for j in range(3):
-            axs[i, j].hist(pos[:, i * 3 + j], bins=100)
+            axs[i, j].hist(joint_pos[:, i * 3 + j], bins=100)
+            axs[i, j].set_title(f"{feet_names[i]} {joint_names[j]}")
 
-    plt.savefig("hist.png")
+    plt.savefig("plot/distribution/joint_pos_distribution.png")
+
+    # Plot histogram of foot positions
+    if env_info is not None:
+        feet = [LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side]) for side in feet_names]
+
+        fig, axs = plt.subplots(4, 3, figsize=(15, 20))
+        for i in range(4):
+            for j in range(3):
+                foot = feet[i]
+                foot_pos = foot.get_pos(joint_pos.cuda()).cpu()
+                axs[i, j].hist(foot_pos[:, j], bins=100)
+                axs[i, j].set_title(f"{feet_names[i]} {['x', 'y', 'z'][j]}")
+
+        plt.savefig("plot/distribution/foot_pos_distribution.png")    
 
 def get_metrics(dataset, agent, atacom_enable, gamma):
     J = torch.mean(dataset.compute_J(gamma))
