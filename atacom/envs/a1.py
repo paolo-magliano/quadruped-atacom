@@ -32,7 +32,7 @@ class A1EffVel(A1Eff):
         self._integral_error[env_mask] = 0.
         return super().reset_all(env_mask, state)
 
-class A1Env(A1EffVel):
+class A1Env(A1Vel):
     def __init__(self, cfg):
         super().__init__(cfg['num_envs'], cfg['horizon'], cfg['headless']) 
         if cfg['urdf_filepath']:
