@@ -13,15 +13,14 @@ class AgentWrapper(Agent):
         self.randomize_dynamics = randomize_dynamics
         super().__init__(self.learning_agent.mdp_info, SimpleNamespace(policy_state_shape=self.learning_agent.mdp_info.action_space.shape), backend='torch')
 
-
     def draw_action(self, state_orig, policy_state=None):
         rl_action, _ = self.learning_agent.draw_action(self.learning_agent_preprocess(state_orig.clone()), policy_state)
         low = self.mdp_info.action_space.low if type(self.mdp_info.action_space.low) == torch.Tensor else torch.tensor(self.mdp_info.action_space.low, device=rl_action.device)
         high = self.mdp_info.action_space.high if type(self.mdp_info.action_space.high) == torch.Tensor else torch.tensor(self.mdp_info.action_space.high, device=rl_action.device)
         sampled_action = torch.clip(rl_action, low, high)
 
-        q_x, x_dot = self._unwrap_state(state_orig)
-        actual_action = self.atacom_controller.compose_action(q_x, sampled_action, x_dot)
+        q_x, x_dot = self._unwrap_state(state_orig.clone())
+        actual_action = self.atacom_controller.compose_action(q_x, sampled_action.clone(), x_dot)
         actual_action = torch.clip(actual_action, low, high)
         
         # Use the next policy state to return and save the original rl action
