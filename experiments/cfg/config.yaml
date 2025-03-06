@@ -3,7 +3,7 @@
 task_name: A1
 
 # if set to positive integer, overrides the default number of environments
-num_envs: 3072
+num_envs: 2048
 
 # seed - set to -1 to choose random seed
 seed: 1
@@ -17,7 +17,7 @@ render: False
 record: False
 learn:
   n_steps: 4915200 # 4096 * 24 * 50
-  n_steps_per_fit: 98304 # 4096 * 24
+  n_steps_per_fit: 49152 # 2048 * 24
   quiet: ${quiet}
 
 ## Device config
@@ -67,7 +67,7 @@ warp: False
 atacom:
   enable: True 
   slack_dynamics_type: 'exp'
-  slack_beta: 1000
+  slack_beta: 50
   slack_tol: 1e-6
   randomize_dynamics: False
   double_integration: False

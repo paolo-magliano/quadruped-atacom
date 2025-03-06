@@ -41,6 +41,7 @@ def main(cfg: DictConfig) -> None:
 
 def experiment(cfg_dict, logger):
     env, env_info = A1Env.build_env(cfg_dict)
+    env.seed(cfg_dict['seed'])
 
     cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])
     cfg_dict['atacom']['lambda_c'] = 2. / env.dt
@@ -60,7 +61,7 @@ def experiment(cfg_dict, logger):
     core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit)
 
     if cfg_dict['complete_eval']:
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'])
+        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info)
         best_R = -float('inf')
 
         # Write logging
@@ -74,7 +75,7 @@ def experiment(cfg_dict, logger):
             core.learn(**cfg_dict['learn'])
 
             if cfg_dict['complete_eval']:
-                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'])
+                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info)
 
                 # Write logging
                 log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, epoch)
