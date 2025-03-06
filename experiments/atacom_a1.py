@@ -55,7 +55,7 @@ class JointPosConstraint(Constraint):
         return result
 
 class FootPosConstraint(Constraint):
-    def __init__(self, side, env_info, dim_k=3, alpha=0.3, beta=0.3, min_z=-0.3, max_z=-0.15, use_commands=False):
+    def __init__(self, side, env_info, dim_k=3, alpha=0.3, beta=0.3, min_z=-0.3, max_z=-0.15, use_commands=False, check_J=False):
         name = side + '_foot_pos'
         self.logger = env_info['logger'] if 'logger' in env_info else None
         self.get_foot = env_info['fun']['get_relative_link']
@@ -67,6 +67,7 @@ class FootPosConstraint(Constraint):
         self.link_name = side + '_foot'
         self.min_z = min_z
         self.max_z = max_z
+        self.check_J = check_J
         super().__init__(name, dim_q=env_info['n_joints'], dim_k=dim_k, dim_z=0)
 
         self.foot = LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side])
@@ -106,14 +107,9 @@ class FootPosConstraint(Constraint):
 
         result = torch.stack([J_xy, J_z_high, J_z_low], dim=1).to(q.device)
 
-        # J_num = torch.empty_like(result)[0]
-        # for i in range(self.dim_k):
-        #     f = lambda x: self.fun(torch.tensor(x).to('cuda').unsqueeze(0), z, log=False)[0, i].cpu().numpy()
-        #     J_i = numerical_diff_function(f, q[0].cpu().numpy(), eps=1e-5)
-        #     J_num[i] = torch.tensor(J_i).to(q.device)
-        # torch.allclose(J_num[0], J_xy[0])
-        # torch.allclose(J_num[1], J_z_high[0])
-        # torch.allclose(J_num[2], J_z_low[0])
+        if self.check_J:
+            check_jacobian(self.fun, result, q, z)
+
         return result
     
     def _get_ellipse(self, min_a=0.2, max_a=1.):
@@ -127,7 +123,14 @@ class FootPosConstraint(Constraint):
         beta = scale_fun(commands[:, 1], self.beta, min_a, max_a)
 
         return alpha, beta
-
+    
+def check_jacobian(fun, result, q, z):
+    J_num = torch.empty_like(result)[0]
+    for i in range(J_num.shape[0]):
+        f = lambda x: fun(torch.tensor(x).to('cuda').unsqueeze(0), z, log=False)[0, i].cpu().numpy()
+        J_i = numerical_diff_function(f, q[0].cpu().numpy(), eps=1e-5)
+        J_num[i] = torch.tensor(J_i).to(q.device)
+    torch.allclose(J_num, result[0])
 
 def build_atacom_agent(rl_agent, env_info, atacom_params):
     dyn = VelocityControlSystem(dim_q=env_info['n_joints'], vel_limit=env_info['joint_vel_limit'][1])
@@ -135,17 +138,17 @@ def build_atacom_agent(rl_agent, env_info, atacom_params):
 
     # joint_limit = torch.vstack([env_info['joint_pos_limit'][0].clone(), env_info['joint_pos_limit'][1].clone()]).to(TorchUtils.get_device())
 
-    up_limit = torch.tensor([0.85, 0.6, 0.6], dtype=torch.float32).to(TorchUtils.get_device()).repeat(4) + env_info['default_joint_pos']
-    low_limit = torch.tensor([-0.85, -0.8, -0.7], dtype=torch.float32).to(TorchUtils.get_device()).repeat(4) + env_info['default_joint_pos']
+    up_limit = torch.tensor([1, 1, 1], dtype=torch.float32).to(TorchUtils.get_device()).repeat(4) + env_info['default_joint_pos']
+    low_limit = torch.tensor([-1, -1, -1], dtype=torch.float32).to(TorchUtils.get_device()).repeat(4) + env_info['default_joint_pos']
     # joint_limit = torch.vstack([low_limit, up_limit])
     limit = torch.tensor([100. for _ in range(env_info['n_joints'])], dtype=torch.float32).to(TorchUtils.get_device())
     joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
-    # constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger']))
+    constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger']))
 
-    constr_list.add_constraint(FootPosConstraint('FL', env_info))
-    constr_list.add_constraint(FootPosConstraint('FR', env_info))
-    constr_list.add_constraint(FootPosConstraint('RL', env_info))
-    constr_list.add_constraint(FootPosConstraint('RR', env_info))
+    # constr_list.add_constraint(FootPosConstraint('FL', env_info))
+    # constr_list.add_constraint(FootPosConstraint('FR', env_info))
+    # constr_list.add_constraint(FootPosConstraint('RL', env_info))
+    # constr_list.add_constraint(FootPosConstraint('RR', env_info))
     atacom_controller = ATACOMController(constr_list, dyn,
                                          slack_beta=atacom_params['slack_beta'],
                                          slack_tol=atacom_params['slack_tol'],
