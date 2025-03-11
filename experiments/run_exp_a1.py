@@ -49,7 +49,7 @@ def experiment(cfg_dict, logger):
     rl_agent = build_rl_agent(env.info, cfg_dict['train'])
 
     if cfg_dict['atacom']['enable']:
-        atacom_rl_agent = build_atacom_agent(rl_agent, env_info, cfg_dict['atacom'])
+        atacom_rl_agent = build_atacom_agent(rl_agent, env_info, cfg_dict['atacom'], cfg_dict['constraints'])
     else:
         atacom_rl_agent = rl_agent
 

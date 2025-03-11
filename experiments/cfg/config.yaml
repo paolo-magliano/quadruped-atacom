@@ -20,6 +20,8 @@ learn:
   n_steps_per_fit: 49152 # 2048 * 24
   quiet: ${quiet}
 
+env_type: 'PD' # PD or PI
+
 ## Device config
 physics_engine: 'physx'
 # whether to use cpu or gpu pipeline
@@ -74,7 +76,11 @@ atacom:
   drift_compensation_type: 'vanilla'
   drift_clipping: True
 
-urdf_filepath: ''
+constraints:
+  joint_limit: [1.]
+  feet: # ['FL', 'FR', 'RL', 'RR']
+
+urdf_filepath: 
 
 results_dir: './logs'
 wandb:

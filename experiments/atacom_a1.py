@@ -132,23 +132,22 @@ def check_jacobian(fun, result, q, z):
         J_num[i] = torch.tensor(J_i).to(q.device)
     torch.allclose(J_num, result[0])
 
-def build_atacom_agent(rl_agent, env_info, atacom_params):
+def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
     dyn = VelocityControlSystem(dim_q=env_info['n_joints'], vel_limit=env_info['joint_vel_limit'][1])
     constr_list = ConstraintList(dim_q=env_info['n_joints'])
 
-    # joint_limit = torch.vstack([env_info['joint_pos_limit'][0].clone(), env_info['joint_pos_limit'][1].clone()]).to(TorchUtils.get_device())
+    if constraints_params['joint_limit']:
+        if env_info['n_joints'] % len(constraints_params['joint_limit']) != 0:
+            raise Exception('The number of joints must be divisible by the number of joint limits')
+        repeat_len = env_info['n_joints'] // len(constraints_params['joint_limit'])
+        limit = torch.tensor(constraints_params['joint_limit'], dtype=torch.float32).to(TorchUtils.get_device()).repeat(repeat_len)
+        joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
+        constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger']))
 
-    up_limit = torch.tensor([1, 1, 1], dtype=torch.float32).to(TorchUtils.get_device()).repeat(4) + env_info['default_joint_pos']
-    low_limit = torch.tensor([-1, -1, -1], dtype=torch.float32).to(TorchUtils.get_device()).repeat(4) + env_info['default_joint_pos']
-    # joint_limit = torch.vstack([low_limit, up_limit])
-    limit = torch.tensor([100. for _ in range(env_info['n_joints'])], dtype=torch.float32).to(TorchUtils.get_device())
-    joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
-    constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger']))
+    if constraints_params['feet']:
+        for side in constraints_params['feet']:
+            constr_list.add_constraint(FootPosConstraint(side, env_info))
 
-    # constr_list.add_constraint(FootPosConstraint('FL', env_info))
-    # constr_list.add_constraint(FootPosConstraint('FR', env_info))
-    # constr_list.add_constraint(FootPosConstraint('RL', env_info))
-    # constr_list.add_constraint(FootPosConstraint('RR', env_info))
     atacom_controller = ATACOMController(constr_list, dyn,
                                          slack_beta=atacom_params['slack_beta'],
                                          slack_tol=atacom_params['slack_tol'],
