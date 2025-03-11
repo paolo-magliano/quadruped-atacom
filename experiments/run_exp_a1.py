@@ -16,7 +16,7 @@ from rl_util.callbacks import LogDataset
 
 from experiments.util.log_info import wandb_init, log_info, clean_dir
 
-from atacom.envs.a1 import A1Env, A1PIEnv
+from atacom.envs.a1 import A1PDEnv, A1PIEnv
 from atacom_a1 import build_atacom_agent
 
 import cProfile
@@ -40,7 +40,7 @@ def main(cfg: DictConfig) -> None:
         clean_dir(logger._results_dir)
 
 def experiment(cfg_dict, logger):
-    env, env_info = A1PIEnv.build_env(cfg_dict) if cfg_dict['env_type'] == 'PI' else A1Env.build_env(cfg_dict)
+    env, env_info = A1PIEnv.build_env(cfg_dict) if cfg_dict['env_type'] == 'PI' else A1PDEnv.build_env(cfg_dict)
     env.seed(cfg_dict['seed'])
 
     cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])
