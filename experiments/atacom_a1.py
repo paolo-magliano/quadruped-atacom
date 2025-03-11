@@ -12,10 +12,6 @@ from atacom import AgentWrapper
 
 from kinematics_a1 import LinkPos
 
-from atacom_a1_old import build_old_atacom_controller
-from atacom.core.atacom_controller_debug import ATACOMController as ATACOMControllerDebug
-from atacom.core.rl_wrapper_debug import AgentWrapper as AgentWrapperDebug
-
 class ATACOMWrapper(AgentWrapper):
     def __init__(self, env_info, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False, old_atacom_controller=None):
 
@@ -157,7 +153,6 @@ def build_atacom_agent(rl_agent, env_info, atacom_params):
                                          drift_clipping=atacom_params['drift_clipping'],
                                          lambda_c=atacom_params['lambda_c'])
 
-    old_atacom_controller = build_old_atacom_controller(env_info, atacom_params)
     return ATACOMWrapper(env_info=env_info,
                          atacom_controller=atacom_controller,
                          learning_agent=rl_agent,
