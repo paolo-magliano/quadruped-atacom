@@ -32,7 +32,7 @@ class A1EffVel(A1Eff):
         self._integral_error[env_mask] = 0.
         return super().reset_all(env_mask, state)
 
-class A1Env(A1Vel):
+class A1Atacom():
     def __init__(self, cfg):
         super().__init__(cfg['num_envs'], cfg['horizon'], cfg['headless']) 
         if cfg['urdf_filepath']:
@@ -139,6 +139,13 @@ class A1Env(A1Vel):
         # for i in range(len(info)):
         #     info[i].update(costr_info[i].copy())
         return obs, reward, done, costr_info.copy()
+    
+class A1PIEnv(A1Atacom, A1EffVel):
+    pass
+
+class A1PDEnv(A1Atacom, A1Vel):
+    pass
+
 
 def H_matrix(R, t):
     R = torch.tensor(R) if not isinstance(R, torch.Tensor) else R
