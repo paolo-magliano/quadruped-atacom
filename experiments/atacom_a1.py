@@ -155,6 +155,5 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
     return ATACOMWrapper(env_info=env_info,
                          atacom_controller=atacom_controller,
                          learning_agent=rl_agent,
-                         randomize_dynamics=atacom_params['randomize_dynamics'],
-                         old_atacom_controller=old_atacom_controller)
+                         randomize_dynamics=atacom_params['randomize_dynamics'])
 
