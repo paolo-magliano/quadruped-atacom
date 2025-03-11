@@ -3,21 +3,21 @@
 task_name: A1
 
 # if set to positive integer, overrides the default number of environments
-num_envs: 2048
+num_envs: 4096
 
 # seed - set to -1 to choose random seed
 seed: 1
 # set to True for deterministic performance
 torch_deterministic: False
 
-n_epochs: 30
+n_epochs: 10
 horizon: 1000
 quiet: False
 render: False
 record: False
 learn:
   n_steps: 4915200 # 4096 * 24 * 50
-  n_steps_per_fit: 49152 # 2048 * 24
+  n_steps_per_fit: 98304 # 4096 * 24
   quiet: ${quiet}
 
 ## Device config
