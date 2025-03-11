@@ -1,5 +1,6 @@
 import torch
 import pinocchio as pin
+from pathlib import Path
 
 from mushroom_rl.environments.isaacsim_envs.isaac_a1_pos_action import A1Pos 
 from mushroom_rl.environments.isaacsim_envs.isaac_a1_vel_action import A1Vel
@@ -38,7 +39,7 @@ class A1Atacom():
         if cfg['urdf_filepath']:
             self.urdf_filepath = cfg['urdf_filepath']
         else:
-            self.urdf_filepath = 'atacom/envs/assets/a1.urdf'
+            self.urdf_filepath = str(Path(__file__).resolve().parent / 'assets/a1.urdf')
 
         self._model = pin.buildModelFromUrdf(self.urdf_filepath)
         self._model_data = [self._model.createData() for _ in range(cfg['num_envs'])]
