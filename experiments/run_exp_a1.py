@@ -7,8 +7,8 @@ from mushroom_rl.utils.torch import TorchUtils
 
 import hydra
 from omegaconf import DictConfig
-from omniisaacgymenvs.utils.hydra_cfg.reformat import omegaconf_to_dict
-from omniisaacgymenvs.utils.hydra_cfg.hydra_utils import *
+from util.hydra_cfg.reformat import omegaconf_to_dict
+from util.hydra_cfg.hydra_utils import *
 
 from rl_util.build_rl_agent import build_rl_agent
 from rl_util.compute_metric import compute_metrics
