@@ -46,6 +46,7 @@ test: False
 checkpoint: ''
 # evaluate checkpoint
 complete_eval: True
+deep_constr_log: False
 eval:
   n_episodes: 256
   # n_steps: 409600

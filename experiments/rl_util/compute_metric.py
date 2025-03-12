@@ -48,7 +48,7 @@ def compute_V(agent, dataset, atacom_enable):
     return torch.tensor(Q).mean(axis=0)
 
 
-def compute_metrics(core, eval_params, atacom_enable, plot=False, env_info=None):
+def compute_metrics(core, eval_params, atacom_enable, deep_constr_log=False, plot=False, env_info=None):
     if hasattr(core.env, "curriculum_training"):
         core.env.curriculum_training = False
     
@@ -57,7 +57,7 @@ def compute_metrics(core, eval_params, atacom_enable, plot=False, env_info=None)
     if plot:
         plot_hist(dataset.state.cpu(), env_info)
 
-    J, R, E, V, task_info = get_metrics(dataset, core.agent, atacom_enable, core.env.info.gamma)
+    J, R, E, V, task_info = get_metrics(dataset, core.agent, atacom_enable, core.env.info.gamma, deep_constr_log)
 
     if hasattr(core.env, 'clear_task_info'):
         core.env.clear_task_info()
@@ -92,7 +92,7 @@ def plot_hist(state, env_info):
 
         plt.savefig("plot/distribution/foot_pos_distribution.png")    
 
-def get_metrics(dataset, agent, atacom_enable, gamma):
+def get_metrics(dataset, agent, atacom_enable, gamma, deep_constr_log=False):
     J = torch.mean(dataset.compute_J(gamma))
     R = torch.mean(dataset.compute_J())
 
@@ -123,7 +123,7 @@ def get_metrics(dataset, agent, atacom_enable, gamma):
     else:
         V = compute_V(agent, dataset, atacom_enable)
 
-    task_info = get_dataset_info(dataset)
+    task_info = get_dataset_info(dataset, deep_constr_log)
     task_info['episode_length'] = torch.mean(dataset.episodes_length.float()).item()
     task_info.update(Q_info)
 
