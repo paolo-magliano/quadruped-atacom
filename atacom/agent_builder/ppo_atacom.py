@@ -39,7 +39,7 @@ class AtacomPPO(NikitaPPO):
         self._V.fit(state, v_target, **self._critic_fit_params)
 
         self._update_policy(state, action, adv, old_log_p, state, old_pol_dist)
-        self._plot_loss()
+        # self._plot_loss()
 
         # Print fit information
         self._log_info(dataset, state, v_target, old_pol_dist)
@@ -58,7 +58,7 @@ class AtacomPPO(NikitaPPO):
                 prob_ratio = torch.exp(self.policy.log_prob_t(obs_i, act_i) - old_log_p_i)
                 clipped_ratio = torch.clamp(prob_ratio, 1 - self._eps_ppo(), 1 + self._eps_ppo.get_value())
                 loss_clip = -torch.mean(torch.min(prob_ratio * adv_i, clipped_ratio * adv_i))
-                loss_entropy -= self._ent_coeff() * self.policy.entropy_t(obs_i)
+                loss_entropy = -self._ent_coeff() * self.policy.entropy_t(obs_i)
                 self._loss_clip.append(loss_clip.item())
                 self._loss_entropy.append(loss_entropy.item())
                 loss = loss_clip + loss_entropy
@@ -68,11 +68,13 @@ class AtacomPPO(NikitaPPO):
                 self._optimizer.step()
 
     def _plot_loss(self):
-        if self._iter % 10 != 0:
+        if self._iter % 50 != 0:
             return 
-        plt.plot(self._loss_clip)
-        plt.plot(self._loss_entropy)
-        plt.savefig(f'plot/loss/loss_{self._iter}.png')
+        plt.plot(self._loss_clip, label='clip')
+        plt.plot(self._loss_entropy, label='entropy')
+        plt.legend()
+
+        plt.savefig(f'plot/loss/vanilla_loss_{self._iter}.png')
         plt.close()
 
         self._loss_clip = []
