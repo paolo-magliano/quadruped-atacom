@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import torch
+import numpy
 import wandb
 
 from mushroom_rl.core import VectorCore, Logger
@@ -29,6 +30,7 @@ def main(cfg: DictConfig) -> None:
 
     TorchUtils.set_default_device(cfg_dict['rl_device'])
     torch.manual_seed(cfg_dict['seed'])
+    numpy.random.seed(cfg_dict['seed'])
 
     logger = Logger(log_name=cfg_dict['task_name'], results_dir=cfg_dict['results_dir'], seed=cfg_dict['seed'], use_timestamp=True)
     wandb_run = wandb_init(cfg_dict)
