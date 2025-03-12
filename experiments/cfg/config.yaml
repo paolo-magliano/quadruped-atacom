@@ -10,7 +10,7 @@ seed: 1
 # set to True for deterministic performance
 torch_deterministic: False
 
-n_epochs: 10
+n_epochs: 15
 horizon: 1000
 quiet: False
 render: False
@@ -20,7 +20,7 @@ learn:
   n_steps_per_fit: 98304 # 4096 * 24
   quiet: ${quiet}
 
-env_type: 'PD' # PD or PI
+env_type: 'PI' # PD or PI
 
 ## Device config
 physics_engine: 'physx'
