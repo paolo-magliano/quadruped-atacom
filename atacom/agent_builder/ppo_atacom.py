@@ -9,11 +9,12 @@ class AtacomPPO(NikitaPPO):
 
     def __init__(self, mdp_info, policy, actor_optimizer, critic_params,
                  n_epochs_policy, batch_size, eps_ppo, lam, ent_coeff=0.0,
-                 critic_fit_params=None, clip_grad_norm=1., schedule='adaptive', desired_kl=0.01, atacom_enable=False):
+                 critic_fit_params=None, clip_grad_norm=1., schedule='adaptive', desired_kl=0.01, atacom_enable=False, ent_decay=0.):
         super().__init__(mdp_info, policy, actor_optimizer, critic_params,
             n_epochs_policy, batch_size, eps_ppo, lam, ent_coeff,
             critic_fit_params, clip_grad_norm, schedule, desired_kl)
         self._atacom_enable = atacom_enable
+        self._ent_decay = ent_decay
 
         self._loss_clip = []
         self._loss_entropy = []
@@ -58,7 +59,8 @@ class AtacomPPO(NikitaPPO):
                 prob_ratio = torch.exp(self.policy.log_prob_t(obs_i, act_i) - old_log_p_i)
                 clipped_ratio = torch.clamp(prob_ratio, 1 - self._eps_ppo(), 1 + self._eps_ppo.get_value())
                 loss_clip = -torch.mean(torch.min(prob_ratio * adv_i, clipped_ratio * adv_i))
-                loss_entropy = -self._ent_coeff() * self.policy.entropy_t(obs_i)
+                ent_decay = 1 / (1 + self._ent_decay) ** self._iter
+                loss_entropy = -self._ent_coeff() * ent_decay * self.policy.entropy_t(obs_i)
                 self._loss_clip.append(loss_clip.item())
                 self._loss_entropy.append(loss_entropy.item())
                 loss = loss_clip + loss_entropy

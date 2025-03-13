@@ -28,9 +28,10 @@ params:
   eps_ppo: 0.2
   lam: 0.95
   ent_coeff: 0.01
+  ent_decay: 0.
   schedule: 'adaptive' # could be adaptive, fixed
   desired_kl: 0.01
-  clip_grad_norm: 1.
+  clip_grad_norm: 1. 
 
   
   

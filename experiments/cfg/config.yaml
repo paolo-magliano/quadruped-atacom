@@ -78,8 +78,8 @@ atacom:
   drift_clipping: True
 
 constraints:
-  joint_limit: [1.]
-  feet: # ['FL', 'FR', 'RL', 'RR']
+  joint_limit: #[1.]
+  feet: ['FL', 'FR', 'RL', 'RR']
 
 urdf_filepath: 
 
