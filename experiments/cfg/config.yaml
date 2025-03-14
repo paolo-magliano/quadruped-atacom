@@ -20,7 +20,18 @@ learn:
   n_steps_per_fit: 98304 # 4096 * 24
   quiet: ${quiet}
 
-env_type: 'PI' # PD or PI
+control:
+  # type: 'PI' # PD or PI
+  # action_scale: 2.
+  # Kp: 1.0
+  # Kd: 0.
+  # Ki: 0.1
+
+  type: 'PD' # PD or PI
+  action_scale: 2.
+  Kp: 0.
+  Kd: 10.
+  Ki: 0.
 
 ## Device config
 physics_engine: 'physx'
@@ -78,8 +89,8 @@ atacom:
   drift_clipping: True
 
 constraints:
-  joint_limit: #[1.]
-  feet: ['FL', 'FR', 'RL', 'RR']
+  joint_limit: [1.]
+  feet: # ['FL', 'FR', 'RL', 'RR']
 
 urdf_filepath: 
 
