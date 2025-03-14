@@ -11,16 +11,19 @@ from mushroom_rl.rl_utils.spaces import Box
 from atacom.envs.costr_log_utils import ConstrLogger
 
 class A1EffVel(A1Eff):
-    def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(40, 0, 4), camera_target=(30, 0, 0)):
+    def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(40, 0, 4), camera_target=(30, 0, 0), action_scale=1.5, Kp=1., Kd=0., Ki=0.1):
         super().__init__(num_envs, horizon, headless, domain_randomization, camera_position, camera_target)
-        self._action_scale = 1.5
+        self._action_scale = action_scale
+        self._Kp = Kp
+        self._Kd = Kd
+        self._Ki = Ki
         action_limit = self._task.get_joint_max_velocities() / self._action_scale
         self._mdp_info.action_space = Box(-action_limit, action_limit, data_type=action_limit.dtype)
 
         self._integral_error = torch.zeros((num_envs, action_limit.shape[0]), device=self._device)
 
     def _compute_torque(self, action, joint_vels, joint_pos):
-        self._torques = 1. * (self._action_scale * action - joint_vels) + 0.1 * self._integral_error
+        self._torques = self._Kp * (self._action_scale * action - joint_vels) + self._Ki * self._integral_error
 
         not_sat = self._torques.abs() < self._effort_limit
 
@@ -35,7 +38,6 @@ class A1EffVel(A1Eff):
 
 class A1Atacom():
     def __init__(self, cfg):
-        super().__init__(cfg['num_envs'], cfg['horizon'], cfg['headless']) 
         if cfg['urdf_filepath']:
             self.urdf_filepath = cfg['urdf_filepath']
         else:
@@ -142,11 +144,14 @@ class A1Atacom():
         return obs, reward, done, costr_info.copy()
     
 class A1PIEnv(A1Atacom, A1EffVel):
-    pass
+    def __init__(self, cfg):
+        A1EffVel.__init__(self, cfg['num_envs'], cfg['horizon'], cfg['headless'], action_scale=cfg['control']['action_scale'], Kp=cfg['control']['Kp'], Kd=cfg['control']['Kd'], Ki=cfg['control']['Ki'])
+        A1Atacom.__init__(self, cfg)
 
 class A1PDEnv(A1Atacom, A1Vel):
-    pass
-
+    def __init__(self, cfg):
+        A1Vel.__init__(self, cfg['num_envs'], cfg['horizon'], cfg['headless'], action_scale=cfg['control']['action_scale'], stiffness=cfg['control']['Kp'], damping=cfg['control']['Kd'], integral=cfg['control']['Ki'])
+        A1Atacom.__init__(self, cfg)
 
 def H_matrix(R, t):
     R = torch.tensor(R) if not isinstance(R, torch.Tensor) else R

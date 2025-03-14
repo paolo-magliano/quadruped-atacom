@@ -42,7 +42,12 @@ def main(cfg: DictConfig) -> None:
         clean_dir(logger._results_dir)
 
 def experiment(cfg_dict, logger):
-    env, env_info = A1PIEnv.build_env(cfg_dict) if cfg_dict['env_type'] == 'PI' else A1PDEnv.build_env(cfg_dict)
+    if cfg_dict['control']['type'] == 'PI':
+        env, env_info = A1PIEnv.build_env(cfg_dict)
+    elif cfg_dict['control']['type'] == 'PD':
+        env, env_info = A1PDEnv.build_env(cfg_dict)
+    else:
+        raise ValueError(f"Invalid control_type: {cfg_dict['control']['type']}")
     env.seed(cfg_dict['seed'])
 
     cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])

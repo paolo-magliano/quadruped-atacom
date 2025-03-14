@@ -1,5 +1,5 @@
 import torch
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 
 from mushroom_rl.algorithms.actor_critic.deep_actor_critic.ppo_nikita import NikitaPPO
 from mushroom_rl.rl_utils.value_functions import compute_gae
@@ -44,7 +44,7 @@ class AtacomPPO(NikitaPPO):
 
         # Print fit information
         self._log_info(dataset, state, v_target, old_pol_dist)
-        self._iter += 1        
+        self._iter += 1
 
     def _update_policy(self, obs, act, adv, old_log_p, state, old_pol_dist):
         for epoch in range(self._n_epochs_policy()):
@@ -71,7 +71,7 @@ class AtacomPPO(NikitaPPO):
 
     def _plot_loss(self):
         if self._iter % 50 != 0:
-            return 
+            return
         plt.plot(self._loss_clip, label='clip')
         plt.plot(self._loss_entropy, label='entropy')
         plt.legend()

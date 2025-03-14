@@ -51,7 +51,7 @@ class JointPosConstraint(Constraint):
         return result
 
 class FootPosConstraint(Constraint):
-    def __init__(self, side, env_info, dim_k=3, alpha=0.3, beta=0.3, min_z=-0.3, max_z=-0.15, use_commands=False, check_J=False):
+    def __init__(self, side, env_info, dim_k=3, alpha=0.5, beta=0.5, min_z=-0.55, max_z=-0.15, use_commands=False, check_J=False):
         name = side + '_foot_pos'
         self.logger = env_info['logger'] if 'logger' in env_info else None
         self.get_foot = env_info['fun']['get_relative_link']
