@@ -68,12 +68,14 @@ def experiment(cfg_dict, logger):
     core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit)
 
     if cfg_dict['complete_eval']:
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'])
+        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=True)
         best_R = -float('inf')
 
         # Write logging
         log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, -1)
         wandb.log(log_dict, step=0)
+        if cfg_dict['test'] and cfg_dict['record']:
+            compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'])
 
     profile = cProfile.Profile()
     profile.enable()
