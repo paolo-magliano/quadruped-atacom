@@ -7,48 +7,31 @@ num_envs: 4096
 
 # seed - set to -1 to choose random seed
 seed: 1
-# set to True for deterministic performance
-torch_deterministic: False
 
 n_epochs: 15
 horizon: 1000
+
 quiet: False
 render: False
 record: False
+
 learn:
   n_steps: 4915200 # 4096 * 24 * 50
   n_steps_per_fit: 98304 # 4096 * 24
   quiet: ${quiet}
 
 control:
-  # type: 'PI' # PD or PI
-  # action_scale: 2.
-  # Kp: 1.0
-  # Kd: 0.
-  # Ki: 0.1
+  type: 'PI' # PD or PI
+  action_scale: 3.5
+  Kp: 1.2
+  Kd: 0.
+  Ki: 0.1
 
-  type: 'PD' # PD or PI
-  action_scale: 2.
-  Kp: 0.
-  Kd: 10.
-  Ki: 0.
-
-## Device config
-physics_engine: 'physx'
-# whether to use cpu or gpu pipeline
-pipeline: 'gpu'
-# whether to use cpu or gpu physx
-sim_device: 'gpu'
-# used for gpu simulation only - device id for running sim and task if pipeline=gpu
-device_id: 0
-# device to run RL
-rl_device: 'cuda:0'
-# multi-GPU training
-multi_gpu: False
-
-## PhysX arguments
-num_threads: 4 # Number of worker threads used by PhysX - for CPU PhysX only.
-solver_type: 1 # 0: pgs, 1: tgs
+  # type: 'PD' # PD or PI
+  # action_scale: 3.
+  # Kp: 0.
+  # Kd: 10.
+  # Ki: 0.
 
 # MushroomRL arguments
 # test - if set, run policy in inference mode (requires setting checkpoint to load)
@@ -58,6 +41,7 @@ checkpoint: ''
 # evaluate checkpoint
 complete_eval: True
 deep_constr_log: False
+
 eval:
   n_episodes: 256
   # n_steps: 409600
@@ -71,11 +55,6 @@ debug: False
 # disables rendering
 headless: True
 # enables native livestream
-enable_livestream: False
-# timeout for MT script
-mt_timeout: 300
-# Warp
-warp: False
 
 # ATACOM Parameters
 atacom:
@@ -103,12 +82,41 @@ wandb:
   entity: 'paolo_magliano'
   project: 'ATACOM_${task_name}'
 
-# set default task and default training config based on task
-defaults:
-  - _self_
-  # - task: A1
-  - train: A1PPO
-  - override hydra/job_logging: disabled
+train:
+  algorithm: PPO
+  seed: ${seed}
+  checkpoint: ${checkpoint}
+  normalize_state: False
+
+  policy:
+    std_0: 1.
+    n_features: [512, 256, 128]
+    activation: relu
+
+  critic:
+    n_features: [512, 256, 128]
+    activation: relu
+    batch_size: 6155 # 4096 * 24 / 16
+    optimizer:
+      params:
+        lr: 1e-3
+
+  actor_opt:
+    params:
+      lr: 1e-3
+
+  params:
+    atacom_enable: ${atacom.enable}
+    n_epochs_policy: 5
+    batch_size: 6144 # 4096 * 24 / 16
+    eps_ppo: 0.2
+    lam: 0.95
+    ent_coeff: 1e-4 # 0.01 for Nikita, 5e-4 for PD and 1e-4 for PI
+    ent_decay: 0.
+    schedule: 'adaptive' # could be adaptive, fixed
+    desired_kl: 0.01
+    clip_grad_norm: 1. 
+
 
 # set the directory where the output files get saved
 hydra:

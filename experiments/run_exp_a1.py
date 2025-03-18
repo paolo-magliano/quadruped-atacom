@@ -28,7 +28,7 @@ def main(cfg: DictConfig) -> None:
 
     cfg_dict = omegaconf_to_dict(cfg)
 
-    TorchUtils.set_default_device(cfg_dict['rl_device'])
+    TorchUtils.set_default_device('cuda')
     torch.manual_seed(cfg_dict['seed'])
     numpy.random.seed(cfg_dict['seed'])
 

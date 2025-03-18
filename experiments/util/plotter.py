@@ -4,7 +4,7 @@ import torch
 import os
 
 class Plotter():
-    def __init__(self, data_dim, data_len=500, n_row=1, n_col=1, title='plot', path='plot', data_labels=None):
+    def __init__(self, data_dim, data_len=200, n_row=1, n_col=1, title='plot', path='plot', data_labels=None):
         self.data = np.empty((data_dim, data_len, n_row * n_col))
         self.data_len = data_len
         self.n_row = n_row
@@ -30,6 +30,7 @@ class Plotter():
         return np.vstack(data)
     
     def plot(self):
+        print(f'Error: {np.square(self.data[0, :, :] - self.data[1, :, :]).mean()}')
         fig, axes = plt.subplots(self.n_row, self.n_col, figsize=(15, 20))
         for i in range(self.n_row):
             for j in range(self.n_col):
