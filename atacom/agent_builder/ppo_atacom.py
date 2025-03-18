@@ -16,9 +16,6 @@ class AtacomPPO(NikitaPPO):
         self._atacom_enable = atacom_enable
         self._ent_decay = ent_decay
 
-        self._loss_clip = []
-        self._loss_entropy = []
-
     def fit(self, dataset):
         state, action, reward, next_state, absorbing, last = dataset.parse(to='torch')
         state, next_state, state_old = self._preprocess_state(state, next_state)
@@ -61,23 +58,8 @@ class AtacomPPO(NikitaPPO):
                 loss_clip = -torch.mean(torch.min(prob_ratio * adv_i, clipped_ratio * adv_i))
                 ent_decay = 1 / (1 + self._ent_decay) ** self._iter
                 loss_entropy = -self._ent_coeff() * ent_decay * self.policy.entropy_t(obs_i)
-                self._loss_clip.append(loss_clip.item())
-                self._loss_entropy.append(loss_entropy.item())
                 loss = loss_clip + loss_entropy
 
                 loss.backward()
                 self._clip_gradient()
                 self._optimizer.step()
-
-    def _plot_loss(self):
-        if self._iter % 50 != 0:
-            return
-        plt.plot(self._loss_clip, label='clip')
-        plt.plot(self._loss_entropy, label='entropy')
-        plt.legend()
-
-        plt.savefig(f'plot/loss/vanilla_loss_{self._iter}.png')
-        plt.close()
-
-        self._loss_clip = []
-        self._loss_entropy = []
