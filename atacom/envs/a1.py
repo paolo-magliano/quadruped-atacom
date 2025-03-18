@@ -10,9 +10,12 @@ from mushroom_rl.rl_utils.spaces import Box
 
 from atacom.envs.costr_log_utils import ConstrLogger
 
+from util.plotter import Plotter
+
 class A1EffVel(A1Eff):
-    def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(40, 0, 4), camera_target=(30, 0, 0), action_scale=1.5, Kp=1., Kd=0., Ki=0.1):
+    def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(105, 0, 4), camera_target=(95, 0, 0), action_scale=1.5, Kp=1., Kd=0., Ki=0.1):
         super().__init__(num_envs, horizon, headless, domain_randomization, camera_position, camera_target)
+        self.last_dof_pos = torch.zeros((num_envs, self.NUM_DOFS), device=self._device)
         self._action_scale = action_scale
         self._Kp = Kp
         self._Kd = Kd
@@ -20,7 +23,9 @@ class A1EffVel(A1Eff):
         action_limit = self._task.get_joint_max_velocities() / self._action_scale
         self._mdp_info.action_space = Box(-action_limit, action_limit, data_type=action_limit.dtype)
 
-        self._integral_error = torch.zeros((num_envs, action_limit.shape[0]), device=self._device)
+        self._integral_error = torch.zeros((num_envs, self.NUM_DOFS), device=self._device)
+
+        # self.plotter = Plotter(data_dim=2, n_row=4, n_col=3, title="pi_controller", path="plot/controller", data_labels=["actual_action", "target_action"])
 
     def _compute_torque(self, action, joint_vels, joint_pos):
         self._torques = self._Kp * (self._action_scale * action - joint_vels) + self._Ki * self._integral_error
@@ -35,6 +40,58 @@ class A1EffVel(A1Eff):
     def reset_all(self, env_mask, state=None):
         self._integral_error[env_mask] = 0.
         return super().reset_all(env_mask, state)
+
+    def reward(self, obs, action, next_obs, absorbing):
+        base_lin_vel = self.observation_helper.get_from_obs(next_obs, "base_lin_vel")
+        base_lin_vel_xy = base_lin_vel[:, 0:2]
+        base_lin_vel_z = base_lin_vel[:, 2]
+        base_ang_vel = self.observation_helper.get_from_obs(next_obs, "base_ang_vel")
+        base_ang_vel_xy = base_ang_vel[:, 0:2]
+        base_ang_vel_z = base_ang_vel[:, 2]
+
+        dof_vel = self.observation_helper.get_from_obs(next_obs, "joint_vel")
+        dof_pos = self.observation_helper.get_from_obs(next_obs, "joint_pos")
+
+        target_pos = dof_pos + self._action_scale * action * self.dt
+        # self.plotter.add_data(action[0] * self._action_scale, dof_vel[0])
+
+        #---------------------------------------------------------------------------
+
+        r_tracking_lin_vel = self._reward_tracking_lin_vel(base_lin_vel_xy) * 1.0 * self.dt
+        r_tracking_ang_vel = self._reward_tracking_ang_vel(base_ang_vel_z) * 0.5 * self.dt
+        r_lin_vel_z = self._reward_lin_vel_z(base_lin_vel_z) * -2.0 * self.dt
+        r_ang_vel_xy = self._reward_ang_vel_xy(base_ang_vel_xy) * -0.05 * self.dt
+        r_torques = self._reward_torques(self._torques) * -0.0002 * self.dt
+        r_dof_acc = self._reward_dof_acc(dof_vel) * -2.5e-7 * self.dt
+        r_feet_air_time = self._reward_feet_air_time() * 1.0 * self.dt
+        r_collision = self._reward_collision() * -1. * self.dt
+        # r_action_rate = self._reward_action_rate(action) * -0.01 * self.dt
+        r_dof_pos_rate = self._reward_dof_pos_rate(target_pos) * -0.01 * self.dt
+        r_dof_pos_limits = self._reward_dof_pos_limits(dof_pos) * -10.0 * self.dt
+
+        self._extra_info_rewards = {
+            "tracking_lin_vel": r_tracking_lin_vel, "tracking_ang_vel": r_tracking_ang_vel,
+            "lin_vel_z": r_lin_vel_z, "ang_vel_xy": r_ang_vel_xy, 
+            "torques": r_torques, "dof_acc": r_dof_acc, 
+            "feet_air_time": r_feet_air_time, "collision": r_collision, 
+            # "action_rate": r_action_rate, 
+            "dof_pos_rate": r_dof_pos_rate, "dof_pos_limits": r_dof_pos_limits
+        }
+
+        reward = r_tracking_lin_vel + r_tracking_ang_vel + r_lin_vel_z + r_ang_vel_xy + r_torques + r_dof_acc + r_feet_air_time \
+                + r_collision + r_dof_pos_rate + r_dof_pos_limits # + r_action_rate
+        
+        reward = torch.clamp(reward, min=0.)
+
+        self.last_actions = action.clone().detach()
+        self.last_dof_vel = dof_vel.clone().detach()
+        self.last_dof_pos = target_pos.clone().detach()
+        
+        return reward
+
+    def _reward_dof_pos_rate(self, dof_pos):
+        return torch.sum(torch.square(self.last_dof_pos - dof_pos), dim=1)
+
 
 class A1Atacom():
     def __init__(self, cfg):
