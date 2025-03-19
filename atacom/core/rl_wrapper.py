@@ -20,7 +20,7 @@ class AgentWrapper(Agent):
         sampled_action = torch.clip(rl_action, low, high)
 
         q_x, x_dot = self._unwrap_state(state_orig.clone())
-        actual_action = self.atacom_controller.compose_action(q_x, sampled_action.clone(), x_dot)
+        actual_action, _ = self.atacom_controller.compose_action(q_x, sampled_action.clone(), x_dot)
         actual_action = torch.clip(actual_action, low, high)
         
         # Use the next policy state to return and save the original rl action
