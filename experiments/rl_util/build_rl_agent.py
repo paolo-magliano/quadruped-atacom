@@ -6,6 +6,7 @@ import os
 from mushroom_rl.core import Agent
 from mushroom_rl.rl_utils.preprocessors import MinMaxPreprocessor
 from atacom.agent_builder.ppo_atacom import AtacomPPO
+from atacom.agent_builder.rl_util.atacom_torch_policy import AtacomGaussianTorchPolicy
 from mushroom_rl.policy.torch_policy import GaussianTorchPolicy
 
 from .network import Network
@@ -43,7 +44,7 @@ def _build_agent_PPO(mdp_info, cfg_dict):
     cfg_dict['critic']['input_shape'] = mdp_info.observation_space.shape
     cfg_dict['critic']['output_shape'] = (1,)
     
-    policy = GaussianTorchPolicy(Network,
+    policy = AtacomGaussianTorchPolicy(Network,
                                  mdp_info.observation_space.shape,
                                  mdp_info.action_space.shape,
                                  **cfg_dict['policy'])

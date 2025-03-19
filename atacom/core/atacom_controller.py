@@ -104,7 +104,7 @@ class ATACOMController:
         self.u_tangent = B_u[..., :-self.constraints.dim_k, :] @ u.unsqueeze(-1)
         self.u_tangent = self.u_tangent.squeeze(-1)
         u_s = self.u_auxiliary + self.u_tangent
-        return u_s
+        return u_s, B_u
 
     def get_mu(self, k):
         """
