@@ -10,7 +10,7 @@ from mushroom_rl.rl_utils.spaces import Box
 
 from atacom.envs.costr_log_utils import ConstrLogger
 
-from util.plotter import Plotter
+from experiments.util.plotter import Plotter, StoreData
 
 class A1EffVel(A1Eff):
     def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(105, 0, 4), camera_target=(95, 0, 0), action_scale=1.5, Kp=1., Kd=0., Ki=0.1):
@@ -23,16 +23,19 @@ class A1EffVel(A1Eff):
         action_limit = self._task.get_joint_max_velocities() / self._action_scale
         self._mdp_info.action_space = Box(-action_limit, action_limit, data_type=action_limit.dtype)
 
+        self._last_joint_vel = torch.zeros((num_envs, self.NUM_DOFS), device=self._device)
         self._integral_error = torch.zeros((num_envs, self.NUM_DOFS), device=self._device)
 
-        # self.plotter = Plotter(data_dim=2, n_row=4, n_col=3, title="pi_controller", path="plot/controller", data_labels=["actual_action", "target_action"])
+        self.plotter = Plotter(data_dim=2, n_row=4, n_col=3, title="pi_controller", path="plot/controller", data_labels=["target_action", "actual_action"])
+        self.controller_data = StoreData(data_dim=2, n_row=4, n_col=3, num_envs=num_envs)
 
     def _compute_torque(self, action, joint_vels, joint_pos):
-        self._torques = self._Kp * (self._action_scale * action - joint_vels) + self._Ki * self._integral_error
+        self._torques = self._Kp * (self._action_scale * action - joint_vels) + self._Kd * (self._last_joint_vel - joint_vels) +  self._Ki * self._integral_error
 
         not_sat = self._torques.abs() < self._effort_limit
 
         self._torques = self._torques.clamp(-self._effort_limit, self._effort_limit)
+        self._last_joint_vel = joint_vels.clone().detach()
         self._integral_error[not_sat] += self._action_scale * action[not_sat] - joint_vels[not_sat]
 
         return self._torques
@@ -57,6 +60,7 @@ class A1EffVel(A1Eff):
         dof_pos = self.observation_helper.get_from_obs(next_obs, "joint_pos")
 
         target_pos = dof_pos + self._action_scale * action * self.dt
+        # self.controller_data.add_data(action * self._action_scale, dof_vel)
         # self.plotter.add_data(action[0] * self._action_scale, dof_vel[0])
 
         #---------------------------------------------------------------------------
