@@ -10,7 +10,7 @@ from atacom import Constraint, ConstraintList
 from atacom import ATACOMController
 from atacom import AgentWrapper
 
-from kinematics_a1 import LinkPos
+from experiments.kinematics_a1 import LinkPos
 
 class ATACOMWrapper(AgentWrapper):
     def __init__(self, env_info, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False, old_atacom_controller=None):

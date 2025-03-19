@@ -3,7 +3,7 @@ import wandb
 from mushroom_rl.utils.callbacks.callback import Callback
 from mushroom_rl.core.dataset import VectorizedDataset
 
-from rl_util.compute_metric import get_metrics
+from .compute_metric import get_metrics
 from experiments.util.log_info import log_info
 
 class LogDataset(Callback):
