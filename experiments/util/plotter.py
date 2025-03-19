@@ -2,10 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch  
 import os
+import logging
+
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
 class Plotter():
     def __init__(self, data_dim, data_len=200, n_row=1, n_col=1, title='plot', path='plot', data_labels=None):
-        self.data = np.empty((data_dim, data_len, n_row * n_col))
+        self.data = np.zeros((data_dim, data_len, n_row * n_col))
         self.data_len = data_len
         self.n_row = n_row
         self.n_col = n_col
@@ -25,12 +29,12 @@ class Plotter():
             self.plot()
             self.count = 0
 
+
     def _conver_data(self, *data):
-        data = [d.cpu().numpy() if isinstance(d, torch.Tensor) else d for d in data]
+        data = [d.clone().cpu().numpy() if isinstance(d, torch.Tensor) else d for d in data]
         return np.vstack(data)
     
     def plot(self):
-        print(f'Error: {np.square(self.data[0, :, :] - self.data[1, :, :]).mean()}')
         fig, axes = plt.subplots(self.n_row, self.n_col, figsize=(15, 20))
         for i in range(self.n_row):
             for j in range(self.n_col):
@@ -47,4 +51,19 @@ class Plotter():
         self.n_plot += 1
 
 
+class StoreData():
+    def __init__(self, data_dim, data_len=1000, n_row=1, n_col=1, num_envs=1):
+        self.data = np.zeros((data_dim, num_envs, data_len, n_row * n_col))
+        self.data_len = data_len
+        self.n_row = n_row
+        self.n_col = n_col
+        self.count = 0
 
+    def add_data(self, *data):
+        data = self._conver_data(*data)
+        self.data[:, :, self.count, :] = data
+        self.count += 1
+
+    def _conver_data(self, *data):
+        data = [d.clone().unsqueeze(0).cpu().numpy() if isinstance(d, torch.Tensor) else d for d in data]
+        return np.vstack(data)
