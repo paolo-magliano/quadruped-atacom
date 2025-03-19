@@ -40,6 +40,10 @@ class A1EffVel(A1Eff):
     def reset_all(self, env_mask, state=None):
         self._integral_error[env_mask] = 0.
         return super().reset_all(env_mask, state)
+    
+    def _step_finalize(self, env_indices):
+        super()._step_finalize(env_indices)
+        self._integral_error = torch.zeros_like(self._integral_error)
 
     def reward(self, obs, action, next_obs, absorbing):
         base_lin_vel = self.observation_helper.get_from_obs(next_obs, "base_lin_vel")
