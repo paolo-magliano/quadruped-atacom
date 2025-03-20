@@ -13,6 +13,8 @@ class AgentWrapper(Agent):
         self.randomize_dynamics = randomize_dynamics
         super().__init__(self.learning_agent.mdp_info, SimpleNamespace(policy_state_shape=self.learning_agent.mdp_info.action_space.shape), backend='torch')
 
+        self._set_atacom_into_policy()
+
     def draw_action(self, state_orig, policy_state=None):
         rl_action, _ = self.learning_agent.draw_action(self.learning_agent_preprocess(state_orig.clone()), policy_state)
         low = self.mdp_info.action_space.low if type(self.mdp_info.action_space.low) == torch.Tensor else torch.tensor(self.mdp_info.action_space.low, device=rl_action.device)
@@ -41,6 +43,9 @@ class AgentWrapper(Agent):
     
     def _void_action(self):
         return NotImplementedError
+
+    def _set_atacom_into_policy(self):
+        raise NotImplementedError
 
     def fit(self, dataset):
         processed_dataset = self.process_dataset_before_fit(dataset)

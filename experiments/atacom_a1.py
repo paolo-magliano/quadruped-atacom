@@ -19,7 +19,9 @@ class ATACOMWrapper(AgentWrapper):
 
         super().__init__(atacom_controller=atacom_controller, learning_agent=learning_agent, randomize_dynamics=randomize_dynamics) #, old_atacom_controller=old_atacom_controller)
 
-        self.learning_agent.policy.set_atacom_controller(self.atacom_controller, env_info)
+    def _set_atacom_into_policy(self):
+        if hasattr(self.learning_agent.policy, 'set_atacom_controller'):
+            self.learning_agent.policy.set_atacom_controller(self.atacom_controller, self.env_info)
         
     def _unwrap_state(self, obs):
         return obs[:, self.env_info['obs']['joint_pos_idx']] + self.env_info['default_joint_pos'], 0.
