@@ -2,29 +2,29 @@ import torch
 import matplotlib.pyplot as plt
 
 class ConstrLogger:
-    def __init__(self, num_envs):
-        self.data = [{} for _ in range(num_envs)]
+    def __init__(self):
+        self.data = {}
 
     def log(self, name, value):
-        for i in range(len(self.data)):
-            self.data[i][name] = value[i].clone().detach()
+        self.data[f'{name}_constraint'] = value.clone().detach()
     
     def get_and_reset(self):
         data = self.data
-        self.data = [{} for _ in range(len(data))]
+        self.data = {}
         return data
     
     def empty(self):
-        return all([len(d) == 0 for d in self.data])
+        return len(self.data) == 0
 
 def get_dataset_info(dataset, deep=False):
     info = { 'constraints': {} }
     for key in dataset.info.keys():
-        if deep:
-            for i in range(dataset.info[key].shape[1]):
-                info['constraints'][f'{key}_{i}'] = _metrics_dict(dataset.info[key][:, i])
-        else:
-            info['constraints'][key] = _metrics_dict(dataset.info[key])
+        if 'constraint' in key:
+            if deep:
+                for i in range(dataset.info[key].shape[1]):
+                    info['constraints'][f'{key}_{i}'] = _metrics_dict(dataset.info[key][:, i])
+            else:
+                info['constraints'][key] = _metrics_dict(dataset.info[key])
 
     return info
 
