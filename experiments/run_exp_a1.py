@@ -68,7 +68,7 @@ def experiment(cfg_dict, logger):
     core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit)
 
     if cfg_dict['complete_eval']:
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=True)
+        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'])
         best_R = -float('inf')
 
         # Write logging

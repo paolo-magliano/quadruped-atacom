@@ -23,7 +23,7 @@ learn:
 control:
   type: 'PI' # PD or PI
   action_scale: 3.5
-  Kp: 1.2
+  Kp: 1.
   Kd: 0.
   Ki: 0.1
 
@@ -41,6 +41,7 @@ checkpoint: ''
 # evaluate checkpoint
 complete_eval: True
 deep_constr_log: False
+plot_actions: False
 
 eval:
   n_episodes: 256
