@@ -6,10 +6,11 @@ from mushroom_rl.core import Agent
 from types import SimpleNamespace
 
 class AgentWrapper(Agent):
-    def __init__(self, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False):
+    def __init__(self, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False, atacom_enable=True):
         self.atacom_controller = atacom_controller
         self.learning_agent = learning_agent
 
+        self.atacom_enable = atacom_enable
         self.randomize_dynamics = randomize_dynamics
         super().__init__(self.learning_agent.mdp_info, SimpleNamespace(policy_state_shape=self.learning_agent.mdp_info.action_space.shape), backend='torch')
 
@@ -17,11 +18,14 @@ class AgentWrapper(Agent):
 
     def draw_action(self, state_orig, policy_state=None):
         rl_action, _ = self.learning_agent.draw_action(self.learning_agent_preprocess(state_orig.clone()), policy_state)
+        q_x, x_dot = self._unwrap_state(state_orig.clone())
+        if not self.atacom_enable:
+            self.atacom_controller.constraints.k(q_x, None)
+            return rl_action, rl_action
         low = self.mdp_info.action_space.low if type(self.mdp_info.action_space.low) == torch.Tensor else torch.tensor(self.mdp_info.action_space.low, device=rl_action.device)
         high = self.mdp_info.action_space.high if type(self.mdp_info.action_space.high) == torch.Tensor else torch.tensor(self.mdp_info.action_space.high, device=rl_action.device)
         sampled_action = torch.clip(rl_action, low, high)
 
-        q_x, x_dot = self._unwrap_state(state_orig.clone())
         actual_action, _ = self.atacom_controller.compose_action(q_x, sampled_action.clone(), x_dot)
         actual_action = torch.clip(actual_action, low, high)
         
@@ -48,16 +52,17 @@ class AgentWrapper(Agent):
         raise NotImplementedError
 
     def fit(self, dataset):
-        processed_dataset = self.process_dataset_before_fit(dataset)
-        self.learning_agent.fit(processed_dataset)
+        if self.atacom_enable:
+            dataset = self.process_dataset_before_fit(dataset)
+        self.learning_agent.fit(dataset)
 
     def learning_agent_preprocess(self, state):
-
-        for p in self.learning_agent._agent_preprocessors:
-            if state.ndim == 2:
-                state = torch.tensor([p(s.clone()) for s in state])
-            else:
-                state = p(state.clone())
+        if self.atacom_enable:
+            for p in self.learning_agent._agent_preprocessors:
+                if state.ndim == 2:
+                    state = torch.tensor([p(s.clone()) for s in state])
+                else:
+                    state = p(state.clone())
         return state
 
     def process_dataset_before_fit(self, dataset):

@@ -13,11 +13,11 @@ from atacom import AgentWrapper
 from experiments.kinematics_a1 import LinkPos
 
 class ATACOMWrapper(AgentWrapper):
-    def __init__(self, env_info, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False, old_atacom_controller=None):
+    def __init__(self, env_info, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False, atacom_enable=None):
 
         self.env_info = env_info
 
-        super().__init__(atacom_controller=atacom_controller, learning_agent=learning_agent, randomize_dynamics=randomize_dynamics) #, old_atacom_controller=old_atacom_controller)
+        super().__init__(atacom_controller=atacom_controller, learning_agent=learning_agent, randomize_dynamics=randomize_dynamics, atacom_enable=atacom_enable)
 
     def _set_atacom_into_policy(self):
         if hasattr(self.learning_agent.policy, 'set_atacom_controller'):
@@ -145,7 +145,10 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
             raise Exception('The number of joints must be divisible by the number of joint limits')
         repeat_len = env_info['n_joints'] // len(constraints_params['joint_limit'])
         limit = torch.tensor(constraints_params['joint_limit'], dtype=torch.float32).to(TorchUtils.get_device()).repeat(repeat_len)
-        joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
+        if constraints_params['joint_percentage']:
+            joint_limit = limit * env_info['joint_pos_limit'].clone().to(TorchUtils.get_device())
+        else:
+            joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
         constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger'], check_J=constraints_params['check_J']))
 
     if constraints_params['feet']:
@@ -163,5 +166,6 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
     return ATACOMWrapper(env_info=env_info,
                          atacom_controller=atacom_controller,
                          learning_agent=rl_agent,
-                         randomize_dynamics=atacom_params['randomize_dynamics'])
+                         randomize_dynamics=atacom_params['randomize_dynamics'],
+                         atacom_enable=atacom_params['enable'])
 
