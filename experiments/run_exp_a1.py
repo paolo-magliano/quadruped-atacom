@@ -93,15 +93,15 @@ def experiment(cfg_dict, logger):
                 # Write logging
                 log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, epoch)
                 wandb.log(log_dict, step=epoch + 1)
-
-                # if cfg_dict['record']:
-                #         wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{epoch + 2}.mp4", fps=(1 / env.dt))}, step=epoch + 1)
                         
                 if R > best_R:
                     best_R = R
                     logger.log_best_agent(rl_agent, R)
                 
                 logger.log_agent(rl_agent, epoch + 1)
+
+    if cfg_dict['record'] and os.path.exists(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4"):
+        wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4", fps=(1 / env.dt))})
     
     profile.disable()
     stats = pstats.Stats(profile).sort_stats('cumtime')
