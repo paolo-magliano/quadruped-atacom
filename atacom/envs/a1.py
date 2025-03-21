@@ -44,9 +44,9 @@ class A1EffVel(A1Eff):
         self._integral_error[env_mask] = 0.
         return super().reset_all(env_mask, state)
     
-    def _step_finalize(self, env_indices):
-        super()._step_finalize(env_indices)
-        self._integral_error = torch.zeros_like(self._integral_error)
+    # def _step_finalize(self, env_indices):
+    #     super()._step_finalize(env_indices)
+    #     self._integral_error = torch.zeros_like(self._integral_error)
 
     def reward(self, obs, action, next_obs, absorbing):
         base_lin_vel = self.observation_helper.get_from_obs(next_obs, "base_lin_vel")
@@ -117,7 +117,7 @@ class A1Atacom():
         self._leg_base_H ={frame.split('_')[0]: H_matrix(torch.eye(3), self._model_data[0].oMf[self._model.getFrameId(frame)].translation) for frame in ['FL_thigh', 'FR_thigh', 'RL_thigh', 'RR_thigh']}
         self._leg_base_Ad = {k: Ad_matrix(v) for k, v in self._leg_base_H.items()}
 
-        self.constraints_logger = ConstrLogger(cfg['num_envs'])
+        self.constraints_logger = ConstrLogger()
 
         self.env_info = dict()
         self.env_info['num_envs'] = cfg['num_envs']
@@ -204,9 +204,8 @@ class A1Atacom():
         obs, reward, done, info = super().step_all(env_mask, action)
         costr_info = self.constraints_logger.get_and_reset()
         assert self.constraints_logger.empty()
-        # for i in range(len(info)):
-        #     info[i].update(costr_info[i].copy())
-        return obs, reward, done, costr_info.copy()
+        info.update(costr_info)
+        return obs, reward, done, info
     
 class A1PIEnv(A1Atacom, A1EffVel):
     def __init__(self, cfg):

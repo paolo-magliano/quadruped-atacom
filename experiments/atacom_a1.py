@@ -30,11 +30,12 @@ class ATACOMWrapper(AgentWrapper):
         return torch.zeros((self.env_info['num_envs'], self.env_info['action']['len']), device=TorchUtils.get_device())
 
 class JointPosConstraint(Constraint):
-    def __init__(self, n_joints, joint_limits, logger=None):
+    def __init__(self, n_joints, joint_limits, logger=None, check_J=False):
         name = 'Joint_pos'
         self.n_joints = n_joints
         self.joint_limits = joint_limits
         self.logger = logger
+        self.check_J = check_J
         super().__init__(name, dim_q=self.n_joints, dim_k=self.n_joints * 2, dim_z=0)
 
     def fun(self, q, z=None, log=True):
@@ -47,6 +48,9 @@ class JointPosConstraint(Constraint):
     def df_dq(self, q, z=None):
         J_pos = torch.vstack([torch.eye(self.n_joints), -torch.eye(self.n_joints)])
         result = J_pos.unsqueeze(0).repeat(q.shape[0], 1, 1).to(q.device)
+        
+        if self.check_J:
+            check_jacobian(self.fun, result, q, z)
         # J_num = torch.empty_like(result)[0]
         # for i in range(self.dim_k):
         #     f = lambda x: self.fun(torch.tensor(x).to('cuda').unsqueeze(0), z, log=False)[0, i].cpu().numpy()
@@ -142,11 +146,11 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
         repeat_len = env_info['n_joints'] // len(constraints_params['joint_limit'])
         limit = torch.tensor(constraints_params['joint_limit'], dtype=torch.float32).to(TorchUtils.get_device()).repeat(repeat_len)
         joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
-        constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger']))
+        constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger'], check_J=constraints_params['check_J']))
 
     if constraints_params['feet']:
         for side in constraints_params['feet']:
-            constr_list.add_constraint(FootPosConstraint(side, env_info))
+            constr_list.add_constraint(FootPosConstraint(side, env_info, check_J=constraints_params['check_J']))
 
     atacom_controller = ATACOMController(constr_list, dyn,
                                          slack_beta=atacom_params['slack_beta'],
