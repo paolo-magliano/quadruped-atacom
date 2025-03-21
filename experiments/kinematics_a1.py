@@ -17,11 +17,19 @@ class LinkPos(object):
         self.end_effector_chain = pk.SerialChain(self.chain, end_effector).to(dtype=self.dtype, device=self.device)
 
     def get_pos(self, q):
+        self._check_dtype_device(q)
         return self.end_effector_chain.forward_kinematics(q[..., self.q_idx]).get_matrix()[:, :3, 3] - self.base_pos
     
     def get_J(self, q):
+        self._check_dtype_device(q)
         batch = q.shape[0] if len(q.shape) > 1 else 1
         J = torch.zeros((batch, 6, q.shape[-1])).to(q.device)
         J[:, :, self.q_idx] = self.end_effector_chain.jacobian(q[..., self.q_idx])
         return J
+    
+    def _check_dtype_device(self, q):
+        if q.dtype != self.end_effector_chain.dtype or q.dtype != self.base_pos.dtype or q.device != self.end_effector_chain.device or q.device != self.base_pos.device:
+            self.end_effector_chain = self.end_effector_chain.to(dtype=q.dtype, device=q.device)
+            self.base_pos = self.base_pos.to(dtype=q.dtype, device=q.device)
+    
         

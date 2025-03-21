@@ -70,6 +70,8 @@ atacom:
 constraints:
   joint_limit: [1.]
   feet: # ['FL', 'FR', 'RL', 'RR']
+  # Activate the numerical control of the jacobian of all contraints. It slow down the execution
+  check_J: False
 
 urdf_filepath: 
 
