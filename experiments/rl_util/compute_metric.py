@@ -14,15 +14,13 @@ def get_init_states(dataset):
     return torch.stack(x_0)
 
 
-def compute_V(agent, dataset, atacom_enable):
+def compute_V(agent, dataset):
     Q = list()
-    if atacom_enable:
-        rl_agent = agent.learning_agent
-    else:
-        rl_agent = agent
+    rl_agent = agent.learning_agent
+
     if hasattr(rl_agent, "n_quantiles"):
         for state_orig in get_init_states(dataset):
-            state = agent.learning_agent_preprocess(state_orig) if atacom_enable else state_orig
+            state = agent.learning_agent_preprocess(state_orig)
             s = torch.tensor([state for i in range(100)])
             a = torch.tensor([agent.draw_action(state_orig)[-agent.mdp_info.real_action_space.shape[0]:] for i in range(100)])
             tau = torch.linspace(0, 1, rl_agent.n_quantiles + 1)
@@ -37,18 +35,18 @@ def compute_V(agent, dataset, atacom_enable):
             Q.append([Q_mean, Q_std, Q_median, Q_min, Q_max])
     elif hasattr(rl_agent, "_critic_approximator"):
         for state_orig in get_init_states(dataset):
-            state = agent.learning_agent_preprocess(state_orig) if atacom_enable else state_orig
+            state = agent.learning_agent_preprocess(state_orig)
             s = torch.tensor([state for i in range(100)])
             a = torch.tensor([agent.draw_action(state_orig)[0][-agent.mdp_info.real_action_space.shape[0]:] for i in range(100)])
             Q.append(agent.learning_agent._critic_approximator(s, a).mean())
     elif hasattr(rl_agent, "_V"):
         for state_orig in get_init_states(dataset):
-            state = agent.learning_agent_preprocess(state_orig) if atacom_enable else state_orig
+            state = agent.learning_agent_preprocess(state_orig)
             Q.append(rl_agent._V(state).mean())
     return torch.tensor(Q).mean(axis=0)
 
 
-def compute_metrics(core, eval_params, atacom_enable, deep_constr_log=False, plot=False, env_info=None, epoch=None, plot_path=None):
+def compute_metrics(core, eval_params, deep_constr_log=False, plot=False, env_info=None, epoch=None, plot_path=None):
     if hasattr(core.env, "curriculum_training"):
         core.env.curriculum_training = False
     
@@ -57,7 +55,7 @@ def compute_metrics(core, eval_params, atacom_enable, deep_constr_log=False, plo
     if plot:
         plot_hist(dataset.state.cpu(), env_info, epoch)
 
-    J, R, E, V, task_info = get_metrics(dataset, core.agent, atacom_enable, core.env.info.gamma, deep_constr_log)
+    J, R, E, V, task_info = get_metrics(dataset, core.agent, core.env.info.gamma, deep_constr_log)
 
     if hasattr(core.env, 'clear_task_info'):
         core.env.clear_task_info()
@@ -92,16 +90,13 @@ def plot_hist(state, env_info, epoch=None, plot_path=None):
 
         plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/feet_pos_distribution_{epoch if epoch is not None else ''}.png")
 
-def get_metrics(dataset, agent, atacom_enable, gamma, deep_constr_log=False):
+def get_metrics(dataset, agent, gamma, deep_constr_log=False):
     J = torch.mean(dataset.compute_J(gamma))
     R = torch.mean(dataset.compute_J())
 
-    if atacom_enable:
-        rl_agent = agent.learning_agent
-    else:
-        rl_agent = agent
+    rl_agent = agent.learning_agent
 
-    entropy_states = agent.learning_agent_preprocess(dataset.parse()[0]) if atacom_enable else dataset.parse()[0]
+    entropy_states = agent.learning_agent_preprocess(dataset.parse()[0])
     entropy_states = entropy_states[:5000]
     if hasattr(rl_agent.policy, 'compute_action_and_log_prob'):
         _, log_prob = rl_agent.policy.compute_action_and_log_prob(entropy_states)
@@ -111,12 +106,12 @@ def get_metrics(dataset, agent, atacom_enable, gamma, deep_constr_log=False):
 
     Q_info = {}
     if hasattr(rl_agent, "n_quantiles"):
-        Q_stats = compute_V(agent, dataset, atacom_enable)
+        Q_stats = compute_V(agent, dataset)
         Q_info = {"V_mean": Q_stats[0], "V_std": Q_stats[1],
                   "V_median": Q_stats[2], "V_min": Q_stats[3], "V_max": Q_stats[4]}
         V = Q_stats[0]
     else:
-        V = compute_V(agent, dataset, atacom_enable)
+        V = compute_V(agent, dataset)
 
     task_info = get_dataset_info(dataset, deep_constr_log)
     task_info['episode_length'] = torch.mean(dataset.episodes_length.float()).item()

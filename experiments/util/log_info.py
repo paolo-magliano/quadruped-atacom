@@ -14,19 +14,18 @@ def log_info(logger, rl_agent, J, R, E, V, task_info, epoch=None, precision=5, l
         logger.epoch_info(epoch + 1, **{'J': sig_figs(J, precision), 'R': sig_figs(R, precision), 'E': sig_figs(E, precision), 'V': sig_figs(V, precision), 'Episode_lenght': sig_figs(task_info['episode_length'], precision)})
     else:
         logger.info(f'J: {sig_figs(J, precision)} R: {sig_figs(R, precision)} E: {sig_figs(E, precision)} V: {sig_figs(V, precision)} Episode_lenght: {sig_figs(task_info["episode_length"], precision)}')
-    for name, value in task_info['constraints'].items():
-        costr_dict_wb = {}
-        costr_dict = {}
-        for k, v in value.items():
-            costr_dict_wb[f"Constraint/{name}/{k}"] = sig_figs(v, precision)
-            costr_dict[f"{name}/{k}"] = sig_figs(v, precision)
-        if log_agent and value['num_violation'] > 0 and epoch > 0:
-            logger.log_agent(rl_agent, str(epoch + 1) + '_' + name)
-        if epoch is not None:
-            logger.epoch_info(epoch + 1, **costr_dict)
-        else:
-            logger.info(f'{name}: {costr_dict}')
-        log_dict.update(costr_dict_wb)
+    for key in ['constraints']:
+        for name, value in task_info[key].items():
+            costr_dict_wb = {}
+            costr_dict = {}
+            for k, v in value.items():
+                costr_dict_wb[f"{key}/{name}/{k}"] = sig_figs(v, precision)
+                costr_dict[f"{name}/{k}"] = sig_figs(v, precision)
+            if epoch is not None:
+                logger.epoch_info(epoch + 1, **costr_dict)
+            else:
+                logger.info(f'{name}: {costr_dict}')
+            log_dict.update(costr_dict_wb)
     if len(task_info) > 1:
         logger.info('#' * 100)
 

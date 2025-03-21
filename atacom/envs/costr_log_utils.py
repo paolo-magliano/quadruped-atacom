@@ -17,18 +17,25 @@ class ConstrLogger:
         return len(self.data) == 0
 
 def get_dataset_info(dataset, deep=False):
-    info = { 'constraints': {} }
+    info = { 
+        'constraints': get_constraint_info(dataset, deep=deep)
+    }
+
+    return info
+
+def get_constraint_info(dataset, deep=False):
+    info = {}
     for key in dataset.info.keys():
         if 'constraint' in key:
             if deep:
                 for i in range(dataset.info[key].shape[1]):
-                    info['constraints'][f'{key}_{i}'] = _metrics_dict(dataset.info[key][:, i])
+                    info[f'{key}_{i}'] = _constr_metrics_dict(dataset.info[key][:, i])
             else:
-                info['constraints'][key] = _metrics_dict(dataset.info[key])
+                info[key] = _constr_metrics_dict(dataset.info[key])
 
     return info
 
-def _metrics_dict(data):
+def _constr_metrics_dict(data):
     bool_violation = data > 0
     return {
         'violation_mean': data[bool_violation].mean().item() if bool_violation.any() else 0.,
