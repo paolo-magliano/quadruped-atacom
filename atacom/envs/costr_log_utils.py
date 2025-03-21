@@ -27,11 +27,10 @@ def get_constraint_info(dataset, deep=False):
     info = {}
     for key in dataset.info.keys():
         if 'constraint' in key:
+            info[key] = _constr_metrics_dict(dataset.info[key])
             if deep:
                 for i in range(dataset.info[key].shape[1]):
                     info[f'{key}_{i}'] = _constr_metrics_dict(dataset.info[key][:, i])
-            else:
-                info[key] = _constr_metrics_dict(dataset.info[key])
 
     return info
 
@@ -41,5 +40,5 @@ def _constr_metrics_dict(data):
         'violation_mean': data[bool_violation].mean().item() if bool_violation.any() else 0.,
         # 'violation_std': data[bool_violation].std().item() if bool_violation.any() else 0.,
         # 'num_violation': bool_violation.any(dim=-1).sum().item(),
-        'average_violation': bool_violation.any(dim=-1).float().mean().item()
+        'average_violation': bool_violation.any(dim=-1).float().mean().item() if bool_violation.ndim > 1 else bool_violation.float().mean().item()
     }

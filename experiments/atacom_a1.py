@@ -42,7 +42,7 @@ class JointPosConstraint(Constraint):
         pos = q[:, :self.n_joints]
         result = torch.cat([pos - self.joint_limits[1], self.joint_limits[0] - pos], dim=1)
         if self.logger is not None and log:
-            self.logger.log(name=self.name, value=result)
+            self.logger.log(name=self.name, value=torch.maximum(pos - self.joint_limits[1], self.joint_limits[0] - pos))
         return result.to(q.device)
 
     def df_dq(self, q, z=None):
@@ -91,7 +91,7 @@ class FootPosConstraint(Constraint):
 
         result = torch.stack([xy, z_high, z_low], dim=1)
         if self.logger is not None and log:
-            self.logger.log(name=self.name, value=result)
+            self.logger.log(name=self.name, value=torch.stack([xy, torch.maximum(z_high, z_low)], dim=1))
         return result.to(q.device)
 
     def df_dq(self, q, z=None):

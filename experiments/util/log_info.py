@@ -19,7 +19,7 @@ def log_info(logger, rl_agent, J, R, E, V, task_info, epoch=None, precision=5, l
             costr_dict_wb = {}
             costr_dict = {}
             for k, v in value.items():
-                costr_dict_wb[f"{key}/{name}/{k}"] = sig_figs(v, precision)
+                costr_dict_wb[f"{key.capitalize()}/{name}/{k}"] = sig_figs(v, precision)
                 costr_dict[f"{name}/{k}"] = sig_figs(v, precision)
             if epoch is not None:
                 logger.epoch_info(epoch + 1, **costr_dict)
