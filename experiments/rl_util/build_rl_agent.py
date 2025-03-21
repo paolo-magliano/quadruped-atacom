@@ -44,10 +44,11 @@ def _build_agent_PPO(mdp_info, cfg_dict):
     cfg_dict['critic']['input_shape'] = mdp_info.observation_space.shape
     cfg_dict['critic']['output_shape'] = (1,)
     
-    policy = AtacomGaussianTorchPolicy(Network,
-                                 mdp_info.observation_space.shape,
-                                 mdp_info.action_space.shape,
-                                 **cfg_dict['policy'])
+    policyClass = AtacomGaussianTorchPolicy if cfg_dict['atacom_policy'] else GaussianTorchPolicy
+    policy = policyClass(Network,
+                mdp_info.observation_space.shape,
+                mdp_info.action_space.shape,
+                **cfg_dict['policy'])
     
     ppo_agent = AtacomPPO(mdp_info, policy, cfg_dict['actor_opt'], cfg_dict['critic'], **cfg_dict['params'])
     

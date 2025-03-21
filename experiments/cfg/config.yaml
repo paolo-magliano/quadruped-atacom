@@ -90,6 +90,7 @@ train:
   seed: ${seed}
   checkpoint: ${checkpoint}
   normalize_state: False
+  atacom_policy: False
 
   policy:
     std_0: 1.
