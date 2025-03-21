@@ -2,6 +2,7 @@ from tqdm import tqdm
 import torch
 import numpy
 import wandb
+from datetime import datetime
 
 from mushroom_rl.core import VectorCore, Logger
 from mushroom_rl.utils.torch import TorchUtils
@@ -55,27 +56,30 @@ def experiment(cfg_dict, logger):
     
     rl_agent = build_rl_agent(env.info, cfg_dict['train'])
 
-    if cfg_dict['atacom']['enable']:
-        atacom_rl_agent = build_atacom_agent(rl_agent, env_info, cfg_dict['atacom'], cfg_dict['constraints'])
-    else:
-        atacom_rl_agent = rl_agent
+    atacom_rl_agent = build_atacom_agent(rl_agent, env_info, cfg_dict['atacom'], cfg_dict['constraints'])
 
     callbacks_fit = []
     if not cfg_dict['complete_eval']:
         log_callback = LogDataset(atacom_rl_agent, cfg_dict['atacom']['enable'], env.info.gamma, logger, cfg_dict['eval']['n_episodes'])
         callbacks_fit.append(log_callback)
 
-    core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit)
+    record_params = {
+        'path':logger._results_dir,
+        'tag': 'records'
+    }
+
+    core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit, record_dictionary=record_params)
 
     if cfg_dict['complete_eval']:
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=-1, plot_path=logger._results_dir)
+        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=-1, plot_path=logger._results_dir)
         best_R = -float('inf')
 
         # Write logging
         log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, -1)
         wandb.log(log_dict, step=0)
         if cfg_dict['test'] and cfg_dict['record']:
-            compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'])
+            compute_metrics(core, cfg_dict['eval'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'])
+            wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-1.mp4", fps=(1 / env.dt))}, step=0)
 
     profile = cProfile.Profile()
     profile.enable()
@@ -84,11 +88,14 @@ def experiment(cfg_dict, logger):
             core.learn(**cfg_dict['learn'])
 
             if cfg_dict['complete_eval']:
-                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=epoch, plot_path=logger._results_dir)
+                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=epoch, plot_path=logger._results_dir)
 
                 # Write logging
                 log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, epoch)
                 wandb.log(log_dict, step=epoch + 1)
+
+                if cfg_dict['record']:
+                        wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{epoch + 2}.mp4", fps=(1 / env.dt))}, step=epoch + 1)
                         
                 if R > best_R:
                     best_R = R

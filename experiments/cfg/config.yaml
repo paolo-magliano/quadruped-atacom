@@ -12,8 +12,8 @@ n_epochs: 15
 horizon: 1000
 
 quiet: False
-render: False
-record: False
+render: True
+record: True
 
 learn:
   n_steps: 4915200 # 4096 * 24 * 50
@@ -40,8 +40,8 @@ test: False
 checkpoint: ''
 # evaluate checkpoint
 complete_eval: True
-deep_constr_log: False
-plot_actions: False
+deep_constr_log: True
+plot_actions: True
 
 eval:
   n_episodes: 256
@@ -69,7 +69,8 @@ atacom:
   drift_clipping: True
 
 constraints:
-  joint_limit: [1.]
+  joint_percentage: True
+  joint_limit: [1., 0.9, 0.9]
   feet: # ['FL', 'FR', 'RL', 'RR']
   # Activate the numerical control of the jacobian of all contraints. It slow down the execution
   check_J: False
@@ -110,7 +111,6 @@ train:
       lr: 1e-3
 
   params:
-    atacom_enable: ${atacom.enable}
     n_epochs_policy: 5
     batch_size: 6144 # 4096 * 24 / 16
     eps_ppo: 0.2
