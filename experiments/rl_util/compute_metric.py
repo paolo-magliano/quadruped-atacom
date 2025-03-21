@@ -1,6 +1,7 @@
 import torch
 from atacom.envs.costr_log_utils import get_dataset_info
 import matplotlib.pyplot as plt
+import os
 
 from experiments.kinematics_a1 import LinkPos
 
@@ -74,7 +75,8 @@ def plot_hist(state, env_info, epoch=None, plot_path=None):
             axs[i, j].hist(joint_pos[:, i * 3 + j], bins=100)
             axs[i, j].set_title(f"{feet_names[i]} {joint_names[j]}")
 
-    plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/joint_pos_distribution_{epoch if epoch is not None else ''}.png")
+    os.makedirs(f"{plot_path if plot_path is not None else '.'}/plot/distribution", exist_ok=True)
+    plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/joint_pos_distribution_{epoch + 1 if epoch is not None else ''}.png")
 
     # Plot histogram of foot positions
     if env_info is not None:
@@ -88,7 +90,8 @@ def plot_hist(state, env_info, epoch=None, plot_path=None):
                 axs[i, j].hist(foot_pos[:, j], bins=100)
                 axs[i, j].set_title(f"{feet_names[i]} {['x', 'y', 'z'][j]}")
 
-        plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/feet_pos_distribution_{epoch if epoch is not None else ''}.png")
+        os.makedirs(f"{plot_path if plot_path is not None else '.'}/plot/distribution", exist_ok=True)
+        plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/feet_pos_distribution_{epoch + 1 if epoch is not None else ''}.png")
 
 def get_metrics(dataset, agent, gamma, deep_constr_log=False):
     J = torch.mean(dataset.compute_J(gamma))
