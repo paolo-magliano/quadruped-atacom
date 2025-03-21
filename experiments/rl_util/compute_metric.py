@@ -53,7 +53,7 @@ def compute_metrics(core, eval_params, deep_constr_log=False, plot=False, env_in
     dataset = core.evaluate(**eval_params)
 
     if plot:
-        plot_hist(dataset.state.cpu(), env_info, epoch)
+        plot_hist(dataset.state.cpu(), env_info, epoch, plot_path)
 
     J, R, E, V, task_info = get_metrics(dataset, core.agent, core.env.info.gamma, deep_constr_log)
 

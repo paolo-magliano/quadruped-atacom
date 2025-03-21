@@ -78,8 +78,8 @@ def experiment(cfg_dict, logger):
         log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, -1)
         wandb.log(log_dict, step=0)
         if cfg_dict['test'] and cfg_dict['record']:
-            compute_metrics(core, cfg_dict['eval'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'])
-            wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-1.mp4", fps=(1 / env.dt))}, step=0)
+            compute_metrics(core, cfg_dict['eval'], env_info=env_info)
+            # wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-1.mp4", fps=(1 / env.dt))}, step=0)
 
     profile = cProfile.Profile()
     profile.enable()
@@ -94,8 +94,8 @@ def experiment(cfg_dict, logger):
                 log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, epoch)
                 wandb.log(log_dict, step=epoch + 1)
 
-                if cfg_dict['record']:
-                        wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{epoch + 2}.mp4", fps=(1 / env.dt))}, step=epoch + 1)
+                # if cfg_dict['record']:
+                #         wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{epoch + 2}.mp4", fps=(1 / env.dt))}, step=epoch + 1)
                         
                 if R > best_R:
                     best_R = R
