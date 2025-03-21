@@ -68,7 +68,7 @@ def experiment(cfg_dict, logger):
     core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit)
 
     if cfg_dict['complete_eval']:
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'])
+        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=-1, plot_path=logger._results_dir)
         best_R = -float('inf')
 
         # Write logging
@@ -84,7 +84,7 @@ def experiment(cfg_dict, logger):
             core.learn(**cfg_dict['learn'])
 
             if cfg_dict['complete_eval']:
-                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'])
+                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], cfg_dict['atacom']['enable'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=epoch, plot_path=logger._results_dir)
 
                 # Write logging
                 log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, epoch)
@@ -93,9 +93,8 @@ def experiment(cfg_dict, logger):
                 if R > best_R:
                     best_R = R
                     logger.log_best_agent(rl_agent, R)
-
-                if (epoch + 1) % 10 == 0:
-                    logger.log_agent(rl_agent, epoch + 1)
+                
+                logger.log_agent(rl_agent, epoch + 1)
     
     profile.disable()
     stats = pstats.Stats(profile).sort_stats('cumtime')

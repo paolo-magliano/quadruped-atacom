@@ -48,14 +48,14 @@ def compute_V(agent, dataset, atacom_enable):
     return torch.tensor(Q).mean(axis=0)
 
 
-def compute_metrics(core, eval_params, atacom_enable, deep_constr_log=False, plot=False, env_info=None):
+def compute_metrics(core, eval_params, atacom_enable, deep_constr_log=False, plot=False, env_info=None, epoch=None, plot_path=None):
     if hasattr(core.env, "curriculum_training"):
         core.env.curriculum_training = False
     
     dataset = core.evaluate(**eval_params)
 
     if plot:
-        plot_hist(dataset.state.cpu(), env_info)
+        plot_hist(dataset.state.cpu(), env_info, epoch)
 
     J, R, E, V, task_info = get_metrics(dataset, core.agent, atacom_enable, core.env.info.gamma, deep_constr_log)
 
@@ -64,7 +64,7 @@ def compute_metrics(core, eval_params, atacom_enable, deep_constr_log=False, plo
 
     return J, R, E, V, task_info
 
-def plot_hist(state, env_info):
+def plot_hist(state, env_info, epoch=None, plot_path=None):
     feet_names = ['FL', 'FR', 'RL', 'RR']
     joint_names = ['Hip', 'Thigh', 'Calf']
     joint_pos = state[:, [ 6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28]]
@@ -76,7 +76,7 @@ def plot_hist(state, env_info):
             axs[i, j].hist(joint_pos[:, i * 3 + j], bins=100)
             axs[i, j].set_title(f"{feet_names[i]} {joint_names[j]}")
 
-    plt.savefig("plot/distribution/joint_pos_distribution.png")
+    plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/joint_pos_distribution_{epoch if epoch is not None else ''}.png")
 
     # Plot histogram of foot positions
     if env_info is not None:
@@ -90,7 +90,7 @@ def plot_hist(state, env_info):
                 axs[i, j].hist(foot_pos[:, j], bins=100)
                 axs[i, j].set_title(f"{feet_names[i]} {['x', 'y', 'z'][j]}")
 
-        plt.savefig("plot/distribution/foot_pos_distribution.png")    
+        plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/feet_pos_distribution_{epoch if epoch is not None else ''}.png")
 
 def get_metrics(dataset, agent, atacom_enable, gamma, deep_constr_log=False):
     J = torch.mean(dataset.compute_J(gamma))
@@ -101,18 +101,13 @@ def get_metrics(dataset, agent, atacom_enable, gamma, deep_constr_log=False):
     else:
         rl_agent = agent
 
+    entropy_states = agent.learning_agent_preprocess(dataset.parse()[0]) if atacom_enable else dataset.parse()[0]
+    entropy_states = entropy_states[:5000]
     if hasattr(rl_agent.policy, 'compute_action_and_log_prob'):
-        if atacom_enable:
-            _, log_prob = rl_agent.policy.compute_action_and_log_prob(
-                agent.learning_agent_preprocess(dataset.parse()[0]))
-        else:
-            _, log_prob = rl_agent.policy.compute_action_and_log_prob(dataset.parse()[0])
+        _, log_prob = rl_agent.policy.compute_action_and_log_prob(entropy_states)
         E = -log_prob.mean()
     else:
-        if atacom_enable:
-            E = rl_agent.policy.entropy(agent.learning_agent_preprocess(dataset.parse()[0]))
-        else:
-            E = rl_agent.policy.entropy(dataset.parse()[0])
+        E = rl_agent.policy.entropy(entropy_states)
 
     Q_info = {}
     if hasattr(rl_agent, "n_quantiles"):
