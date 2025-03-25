@@ -17,9 +17,7 @@ class A1EffVel(A1Eff):
         super().__init__(num_envs, horizon, headless, domain_randomization, camera_position, camera_target)
         self.last_dof_pos = torch.zeros((num_envs, self.NUM_DOFS), device=self._device)
         self._action_scale = action_scale
-        self._Kp = Kp
-        self._Kd = Kd
-        self._Ki = Ki
+        self._set_controller_gains(Kp, Kd, Ki)
         action_limit = self._task.get_joint_max_velocities() / self._action_scale
         self._mdp_info.action_space = Box(-action_limit, action_limit, data_type=action_limit.dtype)
 
@@ -28,6 +26,17 @@ class A1EffVel(A1Eff):
 
         self.plotter = Plotter(data_dim=2, n_row=4, n_col=3, title="pi_controller", path="plot/controller", data_labels=["target_action", "actual_action"])
         self.controller_data = StoreData(data_dim=2, n_row=4, n_col=3, num_envs=num_envs)
+
+    def _set_controller_gains(self, Kp, Kd, Ki):
+        self._Kp = self._reapeat_dof(Kp)
+        self._Kd = self._reapeat_dof(Kd)
+        self._Ki = self._reapeat_dof(Ki)
+
+    def _reapeat_dof(self, value):
+        if self.NUM_DOFS % len(value) != 0:
+            raise ValueError(f"Invalid gains size: {len(value)}")
+        repeat_len = self.NUM_DOFS // len(value)
+        return torch.tensor(value).repeat(repeat_len).to(self._device)
 
     def _compute_torque(self, action, joint_vels, joint_pos):
         self._torques = self._Kp * (self._action_scale * action - joint_vels) + self._Kd * (self._last_joint_vel - joint_vels) +  self._Ki * self._integral_error
@@ -99,6 +108,9 @@ class A1EffVel(A1Eff):
 
     def _reward_dof_pos_rate(self, dof_pos):
         return torch.sum(torch.square(self.last_dof_pos - dof_pos), dim=1)
+
+    def _reward_default_dof_pos(self, dof_pos):
+        return torch.sum(torch.square(self._default_joint_angles - dof_pos), dim=1)
 
 
 class A1Atacom():
