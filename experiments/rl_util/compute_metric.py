@@ -50,8 +50,15 @@ def compute_V(agent, dataset):
 def compute_metrics(core, eval_params, deep_constr_log=False, plot=False, env_info=None, epoch=None, plot_path=None):
     if hasattr(core.env, "curriculum_training"):
         core.env.curriculum_training = False
+    plot_path = plot_path if plot_path is not None else '.'
+    epoch = epoch if epoch is not None else ''
     
     dataset = core.evaluate(**eval_params)
+    os.makedirs(f"{plot_path}/dataset/epoch_{epoch}", exist_ok=True)
+    torch.save(dataset.state.cpu(), f"{plot_path}/dataset/epoch_{epoch}/state_{epoch}.pt")
+    for key in dataset.info.keys():
+        if 'constraint' in key:
+            torch.save(dataset.info[key], f"{plot_path}/dataset/epoch_{epoch}/{key}_{epoch}.pt")
 
     if plot:
         plot_hist(dataset.state.cpu(), env_info, epoch, plot_path)
@@ -63,7 +70,7 @@ def compute_metrics(core, eval_params, deep_constr_log=False, plot=False, env_in
 
     return J, R, E, V, task_info
 
-def plot_hist(state, env_info, epoch=None, plot_path=None):
+def plot_hist(state, env_info, epoch, plot_path):
     feet_names = ['FL', 'FR', 'RL', 'RR']
     joint_names = ['Hip', 'Thigh', 'Calf']
     joint_pos = state[:, [ 6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28]]
@@ -75,8 +82,8 @@ def plot_hist(state, env_info, epoch=None, plot_path=None):
             axs[i, j].hist(joint_pos[:, i * 3 + j], bins=100)
             axs[i, j].set_title(f"{feet_names[i]} {joint_names[j]}")
 
-    os.makedirs(f"{plot_path if plot_path is not None else '.'}/plot/distribution", exist_ok=True)
-    plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/joint_pos_distribution_{epoch + 1 if epoch is not None else ''}.png")
+    os.makedirs(f"{plot_path}/plot/distribution", exist_ok=True)
+    plt.savefig(f"{plot_path}/plot/distribution/joint_pos_distribution_{epoch}.png")
 
     # Plot histogram of foot positions
     if env_info is not None:
@@ -86,12 +93,12 @@ def plot_hist(state, env_info, epoch=None, plot_path=None):
         for i in range(4):
             for j in range(3):
                 foot = feet[i]
-                foot_pos = foot.get_pos(joint_pos.cuda()).cpu()
+                foot_pos = foot.get_pos(joint_pos.cuda() + env_info['default_joint_pos']).cpu()
                 axs[i, j].hist(foot_pos[:, j], bins=100)
                 axs[i, j].set_title(f"{feet_names[i]} {['x', 'y', 'z'][j]}")
 
         os.makedirs(f"{plot_path if plot_path is not None else '.'}/plot/distribution", exist_ok=True)
-        plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/feet_pos_distribution_{epoch + 1 if epoch is not None else ''}.png")
+        plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/feet_pos_distribution_{epoch if epoch is not None else ''}.png")
 
 def get_metrics(dataset, agent, gamma, deep_constr_log=False):
     J = torch.mean(dataset.compute_J(gamma))
