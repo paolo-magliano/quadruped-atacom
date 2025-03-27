@@ -3,6 +3,7 @@ import torch
 import numpy
 import wandb
 from datetime import datetime
+import os
 
 from mushroom_rl.core import VectorCore, Logger
 from mushroom_rl.utils.torch import TorchUtils
@@ -86,6 +87,10 @@ def experiment(cfg_dict, logger):
     if not cfg_dict['test']:
         for epoch in tqdm(range(cfg_dict['n_epochs']), disable=False, leave=False):           
             core.learn(**cfg_dict['learn'])
+
+            if (epoch + 2) == cfg_dict['n_epochs']:
+                cfg_dict['eval']['render'] = True
+                cfg_dict['eval']['record'] = True
 
             if cfg_dict['complete_eval']:
                 J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=epoch, plot_path=logger._results_dir)
