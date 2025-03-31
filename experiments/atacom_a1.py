@@ -20,7 +20,7 @@ class ATACOMWrapper(AgentWrapper):
         super().__init__(atacom_controller=atacom_controller, learning_agent=learning_agent, randomize_dynamics=randomize_dynamics, atacom_enable=atacom_enable)
 
     def _set_atacom_into_policy(self):
-        if hasattr(self.learning_agent.policy, 'set_atacom_controller'):
+        if hasattr(self.learning_agent.policy, 'set_atacom_controller') and self.atacom_enable:
             self.learning_agent.policy.set_atacom_controller(self.atacom_controller, self.env_info)
         
     def _unwrap_state(self, obs):
@@ -28,6 +28,33 @@ class ATACOMWrapper(AgentWrapper):
 
     def _void_action(self):
         return torch.zeros((self.env_info['num_envs'], self.env_info['action']['len']), device=TorchUtils.get_device())
+
+class HFEConstraint(Constraint):
+    def __init__(self, n_joints, joint_limits, logger=None, check_J=False):
+        name = 'HFE_pos'
+        self.n_joints = n_joints
+        self.logger = logger
+        self.joint_limits = joint_limits
+        self.check_J = check_J
+        super().__init__(name, dim_q=self.n_joints, dim_k=8, dim_z=0)
+        
+    def fun(self, q, z=None, log=True):
+        pos = q[:, :self.n_joints][:, [i*3 + 1 for i in range(4)]]
+        result = torch.cat([pos - self.joint_limits[1], self.joint_limits[0] - pos], dim=1)
+        if self.logger is not None and log:
+            self.logger.log(name=self.name, value=torch.maximum(pos - self.joint_limits[1], self.joint_limits[0] - pos))
+        return result.to(q.device)
+
+    def df_dq(self, q, z=None):
+        J = torch.zeros(q.shape[0], 4, self.n_joints)
+        for i in range(4):
+            J[:, i, i*3 + 1] = 1
+        J_pos = torch.cat([J, -J], dim=1)
+        result = J_pos.to(q.device)
+        
+        if self.check_J:
+            check_jacobian(self.fun, result, q, z)
+        return result
 
 class JointPosConstraint(Constraint):
     def __init__(self, n_joints, joint_limits, logger=None, check_J=False):
@@ -59,7 +86,7 @@ class JointPosConstraint(Constraint):
         return result
 
 class FootPosConstraint(Constraint):
-    def __init__(self, side, env_info, dim_k=3, alpha=0.5, beta=0.5, min_z=-0.55, max_z=-0.15, use_commands=False, check_J=False):
+    def __init__(self, side, env_info, dim_k=3, alpha=0.5, beta=0.5, min_z=-0.5, max_z=-0.1, use_commands=False, check_J=False):
         name = side + '_foot_pos'
         self.logger = env_info['logger'] if 'logger' in env_info else None
         self.get_foot = env_info['fun']['get_relative_link']
@@ -140,16 +167,28 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
     dyn = VelocityControlSystem(dim_q=env_info['n_joints'], vel_limit=env_info['joint_vel_limit'][1])
     constr_list = ConstraintList(dim_q=env_info['n_joints'])
 
-    if constraints_params['joint_limit']:
-        if env_info['n_joints'] % len(constraints_params['joint_limit']) != 0:
-            raise Exception('The number of joints must be divisible by the number of joint limits')
-        repeat_len = env_info['n_joints'] // len(constraints_params['joint_limit'])
-        limit = torch.tensor(constraints_params['joint_limit'], dtype=torch.float32).to(TorchUtils.get_device()).repeat(repeat_len)
+    if constraints_params['hfe_limit']:
+        limit = repeat_until(constraints_params['hfe_limit'], 4)
         if constraints_params['joint_percentage']:
-            joint_limit = limit * env_info['joint_pos_limit'].clone().to(TorchUtils.get_device())
+            env_limit = env_info['joint_pos_limit'][:, [i*3 + 1 for i in range(4)]].clone().to(TorchUtils.get_device())
+            invalid_space = (env_limit[1] - env_limit[0]) * (1 - limit) / 2
+            joint_limit = torch.vstack([env_limit[0] + invalid_space, env_limit[1] - invalid_space])
+        else:
+            joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
+        constr_list.add_constraint(HFEConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger'], check_J=constraints_params['check_J']))
+
+    if constraints_params['joint_limit']:
+        limit = repeat_until(constraints_params['joint_limit'], env_info['n_joints'])
+        if constraints_params['joint_percentage']:
+            env_limit = env_info['joint_pos_limit'].clone().to(TorchUtils.get_device())
+            invalid_space = (env_limit[1] - env_limit[0]) * (1 - limit) / 2
+            joint_limit = torch.vstack([env_limit[0] + invalid_space, env_limit[1] - invalid_space])
         else:
             joint_limit = torch.vstack([-limit, limit]) + env_info['default_joint_pos']
         constr_list.add_constraint(JointPosConstraint(env_info['n_joints'], joint_limit, logger=env_info['logger'], check_J=constraints_params['check_J']))
+        print(f'Joint limits: {joint_limit}')
+        print(f'Default joint pos: {env_info["default_joint_pos"]}')
+        print(f'Env joint pos limit: {env_info["joint_pos_limit"]}')
 
     if constraints_params['feet']:
         for side in constraints_params['feet']:
@@ -168,4 +207,13 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
                          learning_agent=rl_agent,
                          randomize_dynamics=atacom_params['randomize_dynamics'],
                          atacom_enable=atacom_params['enable'])
+
+
+def repeat_until(values, n):
+    if n % len(values) != 0:
+        raise Exception('The number of joints must be divisible by the number of joint limits')
+    repeat_len = n // len(values)
+    limit = torch.tensor(values, dtype=torch.float32).to(TorchUtils.get_device()).repeat(repeat_len)
+
+    return limit
 
