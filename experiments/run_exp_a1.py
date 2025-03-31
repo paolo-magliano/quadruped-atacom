@@ -3,6 +3,7 @@ import torch
 import numpy
 import wandb
 from datetime import datetime
+import os
 import sys
 sys.path.append('/home/magliano/Project/SafeLocomotion')
 
@@ -72,15 +73,16 @@ def experiment(cfg_dict, logger):
 
     core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit, record_dictionary=record_params)
 
+    # compute_metrics(core, eval_params, env_info , epoch, deep_constr_log=False, plot_path='plot', dataset_path='dataset'):
     if cfg_dict['complete_eval']:
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=-1, plot_path=logger._results_dir)
+        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, 0, deep_constr_log=cfg_dict['deep_constr_log'], plot_path=f'{logger._results_dir}/plot', dataset_path=f'{logger._results_dir}/dataset')
         best_R = -float('inf')
 
         # Write logging
         log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, -1)
         wandb.log(log_dict, step=0)
         if cfg_dict['test'] and cfg_dict['record']:
-            compute_metrics(core, cfg_dict['eval'], env_info=env_info)
+            compute_metrics(core, cfg_dict['eval'], env_info, 0)
             # wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-1.mp4", fps=(1 / env.dt))}, step=0)
 
     profile = cProfile.Profile()
@@ -89,18 +91,18 @@ def experiment(cfg_dict, logger):
         for epoch in tqdm(range(cfg_dict['n_epochs']), disable=False, leave=False):           
             core.learn(**cfg_dict['learn'])
 
+            if (epoch + 2) == cfg_dict['n_epochs']:
+                cfg_dict['eval']['render'] = True
+                cfg_dict['eval']['record'] = True
+
             if cfg_dict['complete_eval']:
-                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info=env_info, deep_constr_log=cfg_dict['deep_constr_log'], plot=cfg_dict['plot_actions'], epoch=epoch, plot_path=logger._results_dir)
+                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, epoch + 1, deep_constr_log=cfg_dict['deep_constr_log'], plot_path=f'{logger._results_dir}/plot', dataset_path=f'{logger._results_dir}/dataset')
 
                 # Write logging
                 log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, epoch)
                 wandb.log(log_dict, step=epoch + 1)
                         
-                if R > best_R:
-                    best_R = R
-                    logger.log_best_agent(rl_agent, R)
-                
-                logger.log_agent(rl_agent, epoch + 1)
+                logger.log_best_agent(rl_agent, R)
 
     if cfg_dict['record'] and os.path.exists(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4"):
         wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4", fps=(1 / env.dt))})

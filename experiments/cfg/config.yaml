@@ -12,8 +12,8 @@ n_epochs: 15
 horizon: 1000
 
 quiet: False
-render: True
-record: True
+render: False
+record: False
 
 learn:
   n_steps: 4915200 # 4096 * 24 * 50
@@ -23,9 +23,10 @@ learn:
 control:
   type: 'PI' # PD or PI
   action_scale: 3.5
-  Kp: 1.
-  Kd: 0.
-  Ki: 0.1
+  # Kp: [1.2, 2.45, 1.2] Kd: [0.01, 0.005, 0.0] Ki: [0.2, 0.2, 0.8]
+  Kp: [1.]
+  Kd: [0.]
+  Ki: [0.1]
 
   # type: 'PD' # PD or PI
   # action_scale: 3.
@@ -40,8 +41,7 @@ test: False
 checkpoint: ''
 # evaluate checkpoint
 complete_eval: True
-deep_constr_log: True
-plot_actions: True
+deep_constr_log: False
 
 eval:
   n_episodes: 256
@@ -69,9 +69,10 @@ atacom:
   drift_clipping: True
 
 constraints:
-  joint_percentage: True
-  joint_limit: [1., 0.9, 0.9]
-  feet: # ['FL', 'FR', 'RL', 'RR']
+  joint_percentage: False
+  joint_limit: # [1., 1., 1.]
+  hfe_limit: # [0.5]
+  feet: ['FL', 'FR', 'RL', 'RR']
   # Activate the numerical control of the jacobian of all contraints. It slow down the execution
   check_J: False
 
@@ -127,4 +128,5 @@ hydra:
   output_subdir: null
   run:
     dir: .
+
 

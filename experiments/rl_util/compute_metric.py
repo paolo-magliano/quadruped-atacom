@@ -1,9 +1,8 @@
 import torch
-from atacom.envs.costr_log_utils import get_dataset_info
-import matplotlib.pyplot as plt
 import os
 
-from experiments.kinematics_a1 import LinkPos
+from atacom.envs.costr_log_utils import get_dataset_info
+from experiments.rl_util.plot_metric import plot_metric, save_dataset
 
 def get_init_states(dataset):
     pick = True
@@ -47,14 +46,15 @@ def compute_V(agent, dataset):
     return torch.tensor(Q).mean(axis=0)
 
 
-def compute_metrics(core, eval_params, deep_constr_log=False, plot=False, env_info=None, epoch=None, plot_path=None):
+def compute_metrics(core, eval_params, env_info , epoch, deep_constr_log=False, plot_path='plot', dataset_path='dataset'):
     if hasattr(core.env, "curriculum_training"):
         core.env.curriculum_training = False
     
     dataset = core.evaluate(**eval_params)
 
-    if plot:
-        plot_hist(dataset.state.cpu(), env_info, epoch, plot_path)
+    save_dataset(dataset, dataset_path, epoch)
+
+    plot_metric(dataset.state.cpu(), env_info, epoch, plot_path)
 
     J, R, E, V, task_info = get_metrics(dataset, core.agent, core.env.info.gamma, deep_constr_log)
 
@@ -62,36 +62,6 @@ def compute_metrics(core, eval_params, deep_constr_log=False, plot=False, env_in
         core.env.clear_task_info()
 
     return J, R, E, V, task_info
-
-def plot_hist(state, env_info, epoch=None, plot_path=None):
-    feet_names = ['FL', 'FR', 'RL', 'RR']
-    joint_names = ['Hip', 'Thigh', 'Calf']
-    joint_pos = state[:, [ 6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28]]
-
-    # Plot histogram of joint angles positions
-    fig, axs = plt.subplots(4, 3, figsize=(15, 20))
-    for i in range(4):
-        for j in range(3):
-            axs[i, j].hist(joint_pos[:, i * 3 + j], bins=100)
-            axs[i, j].set_title(f"{feet_names[i]} {joint_names[j]}")
-
-    os.makedirs(f"{plot_path if plot_path is not None else '.'}/plot/distribution", exist_ok=True)
-    plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/joint_pos_distribution_{epoch + 1 if epoch is not None else ''}.png")
-
-    # Plot histogram of foot positions
-    if env_info is not None:
-        feet = [LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side]) for side in feet_names]
-
-        fig, axs = plt.subplots(4, 3, figsize=(15, 20))
-        for i in range(4):
-            for j in range(3):
-                foot = feet[i]
-                foot_pos = foot.get_pos(joint_pos.cuda()).cpu()
-                axs[i, j].hist(foot_pos[:, j], bins=100)
-                axs[i, j].set_title(f"{feet_names[i]} {['x', 'y', 'z'][j]}")
-
-        os.makedirs(f"{plot_path if plot_path is not None else '.'}/plot/distribution", exist_ok=True)
-        plt.savefig(f"{plot_path if plot_path is not None else '.'}/plot/distribution/feet_pos_distribution_{epoch + 1 if epoch is not None else ''}.png")
 
 def get_metrics(dataset, agent, gamma, deep_constr_log=False):
     J = torch.mean(dataset.compute_J(gamma))
