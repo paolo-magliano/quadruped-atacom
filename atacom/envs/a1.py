@@ -24,6 +24,8 @@ class A1EffVel(A1Eff):
         self._last_joint_vel = torch.zeros((num_envs, self.NUM_DOFS), device=self._device)
         self._integral_error = torch.zeros((num_envs, self.NUM_DOFS), device=self._device)
 
+        self.action_ratio = torch.ones((num_envs, self.NUM_DOFS), device=self._device)
+
         self.plotter = Plotter(data_dim=2, n_row=4, n_col=3, title="pi_controller", path="plot/controller", data_labels=["target_action", "actual_action"])
         self.controller_data = StoreData(data_dim=2, n_row=4, n_col=3, num_envs=num_envs)
 
@@ -82,7 +84,7 @@ class A1EffVel(A1Eff):
         r_dof_acc = self._reward_dof_acc(dof_vel) * -2.5e-7 * self.dt
         r_feet_air_time = self._reward_feet_air_time() * 1.0 * self.dt
         r_collision = self._reward_collision() * -1. * self.dt
-        # r_action_rate = self._reward_action_rate(action) * -0.01 * self.dt
+        r_action_rate = self._reward_action_rate(action) * -0.01 * self.dt
         r_dof_pos_rate = self._reward_dof_pos_rate(target_pos) * -0.01 * self.dt
         r_dof_pos_limits = self._reward_dof_pos_limits(dof_pos) * -10.0 * self.dt
 
@@ -91,14 +93,16 @@ class A1EffVel(A1Eff):
             "lin_vel_z": r_lin_vel_z, "ang_vel_xy": r_ang_vel_xy, 
             "torques": r_torques, "dof_acc": r_dof_acc, 
             "feet_air_time": r_feet_air_time, "collision": r_collision, 
-            # "action_rate": r_action_rate, 
+            "action_rate": r_action_rate, 
             "dof_pos_rate": r_dof_pos_rate, "dof_pos_limits": r_dof_pos_limits
         }
 
         reward = r_tracking_lin_vel + r_tracking_ang_vel + r_lin_vel_z + r_ang_vel_xy + r_torques + r_dof_acc + r_feet_air_time \
-                + r_collision + r_dof_pos_rate + r_dof_pos_limits # + r_action_rate
+                + r_collision + r_dof_pos_rate + r_dof_pos_limits + r_action_rate
         
         reward = torch.clamp(reward, min=0.)
+
+        # reward = 0.1 - 5 * self.dt * self._reward_default_dof_pos(dof_pos) - 5 * self.dt * self._reward_action_ratio() 
 
         self.last_actions = action.clone().detach()
         self.last_dof_vel = dof_vel.clone().detach()
@@ -111,6 +115,14 @@ class A1EffVel(A1Eff):
 
     def _reward_default_dof_pos(self, dof_pos):
         return torch.sum(torch.square(self._default_joint_angles - dof_pos), dim=1)
+
+    # def _reward_action_ratio(self):
+    #     return torch.sum(torch.square(self.action_ratio - 1.), dim=1)
+
+    # def step_all(self, env_mask, action):
+    #     real_action, action_ratio = action
+    #     self.action_ratio = action_ratio
+    #     return super().step_all(env_mask, real_action)
 
 
 class A1Atacom():
