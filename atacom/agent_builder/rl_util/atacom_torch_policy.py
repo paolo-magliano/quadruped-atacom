@@ -60,13 +60,6 @@ class AtacomGaussianTorchPolicy(TorchPolicy):
         self.env_info = env_info
 
     def entropy_t(self, state=None):
-        entropy = self._entropy_t(state)
-        auto_grad = self._check_entropy_gradient(state)
-        entropy.backward()
-        grad = self._log_sigma.grad
-        return entropy
-
-    def _entropy_t(self, state=None):
         action, _ = self.draw_action(state)
         log_p = self.log_prob_t(state, action)
         # if self.atacom_controller is not None:
@@ -83,13 +76,3 @@ class AtacomGaussianTorchPolicy(TorchPolicy):
     
     def _unwrap_state(self, obs):
         return obs[:, self.env_info['obs']['joint_pos_idx']] + self.env_info['default_joint_pos'], 0.
-    
-
-    def _check_entropy_gradient(self, state=None):
-        def fun(log_sigma):
-            self._log_sigma = torch.tensor(log_sigma, dtype=self._log_sigma.dtype, device=self._log_sigma.device)
-            return self._entropy_t(state).cpu().detach().numpy()
-        
-        log_sigma = self._log_sigma.cpu().detach().numpy()
-        grad = torch.tensor(numerical_diff_function(fun, log_sigma, eps=1e-5)).to(self._log_sigma.device)
-        return grad
