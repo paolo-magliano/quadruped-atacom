@@ -3,6 +3,8 @@ import torch
 import numpy
 import wandb
 from datetime import datetime
+import sys
+sys.path.append('/home/magliano/Project/SafeLocomotion')
 
 from mushroom_rl.core import VectorCore, Logger
 from mushroom_rl.utils.torch import TorchUtils
