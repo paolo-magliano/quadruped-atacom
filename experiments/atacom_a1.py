@@ -89,8 +89,6 @@ class FootPosConstraint(Constraint):
     def __init__(self, side, env_info, dim_k=3, alpha=0.3, beta=0.3, min_z=-0.4, max_z=-0.2, use_commands=False, check_J=False):
         name = side + '_foot_pos'
         self.logger = env_info['logger'] if 'logger' in env_info else None
-        self.get_foot = env_info['fun']['get_relative_link']
-        self.get_foot_J = env_info['fun']['get_J_relative_link']
         self.get_command = env_info['fun']['get_commands']
         self.use_commands = use_commands
         self.alpha = alpha
@@ -104,17 +102,12 @@ class FootPosConstraint(Constraint):
         self.foot = LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side])
 
     def fun(self, q, z=None, log=True):
-        # TODO Add tanh and commands
-        # H = self.get_foot(q, self.link_name)
-        # pos = H[:, :3, 3]
-
         pos = self.foot.get_pos(q)
         alpha, beta = self._get_ellipse()
 
         xy = pos[:, 0] ** 2 / (alpha ** 2) + pos[:, 1] ** 2 / (beta ** 2) - 1
         z_high = pos[:, 2] - self.max_z
         z_low = self.min_z - pos[:, 2]
-        # print(f'Z max: {pos[:, 2].max()} Z min: {pos[:, 2].min()}')
 
         result = torch.stack([xy, z_high, z_low], dim=1)
         if self.logger is not None and log:
@@ -122,10 +115,6 @@ class FootPosConstraint(Constraint):
         return result.to(q.device)
 
     def df_dq(self, q, z=None):
-        # TODO Add tanh and commands
-        # H = self.get_foot(q, self.link_name)
-        # J = self.get_foot_J(q, self.link_name)
-        # pos = H[:, :3, 3]
 
         pos = self.foot.get_pos(q)
         J = self.foot.get_J(q)

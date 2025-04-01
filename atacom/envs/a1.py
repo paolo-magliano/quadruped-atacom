@@ -1,5 +1,4 @@
 import torch
-import pinocchio as pin
 from pathlib import Path
 
 from mushroom_rl.environments.isaacsim_envs.isaac_a1_pos_action import A1Pos 
@@ -132,26 +131,17 @@ class A1Atacom():
         else:
             self.urdf_filepath = str(Path(__file__).resolve().parent / 'assets/a1.urdf')
 
-        self._model = pin.buildModelFromUrdf(self.urdf_filepath)
-        self._model_data = [self._model.createData() for _ in range(cfg['num_envs'])]
-        default_q = self._default_joint_angles.clone().repeat(cfg['num_envs'], 1)
-        self._last_q = torch.zeros_like(default_q)
-        self._update_model_data(default_q)
-
-        self._leg_base_H ={frame.split('_')[0]: H_matrix(torch.eye(3), self._model_data[0].oMf[self._model.getFrameId(frame)].translation) for frame in ['FL_thigh', 'FR_thigh', 'RL_thigh', 'RR_thigh']}
-        self._leg_base_Ad = {k: Ad_matrix(v) for k, v in self._leg_base_H.items()}
-
         self.constraints_logger = ConstrLogger()
 
         self.env_info = dict()
         self.env_info['num_envs'] = cfg['num_envs']
 
-        self.env_info['n_joints'] = self._model.nq
+        self.env_info['n_joints'] = self.NUM_DOFS
         self.env_info['joint_pos_limit'] = dict()
         self.env_info['joint_vel_limit'] = dict()
         self.env_info['default_joint_pos'] = self._default_joint_angles
-        self.env_info['joint_pos_limit'] = torch.vstack([torch.tensor(self._model.lowerPositionLimit, dtype=torch.float32), torch.tensor(self._model.upperPositionLimit, dtype=torch.float32)])
-        self.env_info['joint_vel_limit'] = torch.vstack([-torch.tensor(self._model.velocityLimit, dtype=torch.float32), torch.tensor(self._model.velocityLimit, dtype=torch.float32)])
+        self.env_info['joint_pos_limit'] = self._task.get_joint_pos_limits()
+        self.env_info['joint_vel_limit'] = torch.vstack([-self._task.get_joint_max_velocities(), self._task.get_joint_max_velocities()])
         
         self.env_info['action'] = dict()
         self.env_info['action']['len'] = self._mdp_info.action_space.shape[0]
@@ -170,8 +160,6 @@ class A1Atacom():
         self.env_info['obs']['actions_idx'] = self.observation_helper.obs_idx_map["actions"]
 
         self.env_info['fun'] = dict()
-        self.env_info['fun']['get_relative_link'] = self.get_relative_link
-        self.env_info['fun']['get_J_relative_link'] = self.get_J_relative_link
         self.env_info['fun']['get_commands'] = self.get_commands
 
         self.env_info['logger'] = self.constraints_logger
@@ -181,45 +169,7 @@ class A1Atacom():
     @classmethod
     def build_env(cls, cfg):
         env = cls(cfg)
-        return env, env.env_info
-    
-    def get_relative_link(self, q, link_name):
-        self._update_model_data(q)
-        pos = torch.stack([self._relative_link(self._model_data[i], link_name) for i in range(q.shape[0])]).type(q.dtype).to(q.device)
-        return pos
-    
-    def get_J_relative_link(self, q, link_name):
-        self._update_model_data(q)
-        J = torch.stack([self._J_relative_link(q[i], self._model_data[i], link_name) for i in range(q.shape[0])]).type(q.dtype).to(q.device)
-        return J
-    
-    def _update_model_data(self, q):
-        if not torch.allclose(q.double(), self._last_q.double()):
-            self._last_q = q.clone()
-            for i in range(q.shape[0]):
-                pin.forwardKinematics(self._model, self._model_data[i], q[i].detach().cpu().numpy())
-                pin.updateFramePlacements(self._model, self._model_data[i])
-      
-    def _relative_link(self, data, link_name):
-        assert link_name.split('_')[0] in self._leg_base_H
-        link_idx = self._model.getFrameId(link_name)
-        Rl = data.oMf[link_idx].rotation
-        tl = data.oMf[link_idx].translation
-        Hl = H_matrix(Rl, tl)
-        Hb = self._leg_base_H[link_name.split('_')[0]]
-
-        return torch.matmul(torch.inverse(Hb), Hl)
-    
-    def _J_relative_link(self, q, data, link_name):
-        assert link_name.split('_')[0] in self._leg_base_Ad
-        link_idx = self._model.getFrameId(link_name)
-        
-        Jl = pin.computeFrameJacobian(self._model, data,  q.detach().cpu().numpy(), link_idx, pin.LOCAL_WORLD_ALIGNED)
-
-        # Ad_b = self._leg_base_Ad[link_name.split('_')[0]]
-
-        #TODO Check with finite difference if torch.inverse(Ad_b) or Ad_b
-        return torch.tensor(Jl) # torch.matmul(torch.inverse(Ad_b), torch.tensor(Jl))
+        return env, env.env_info  
     
     def get_commands(self):
         return self.commands.clone()
