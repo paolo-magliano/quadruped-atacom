@@ -69,10 +69,16 @@ atacom:
   drift_clipping: True
 
 constraints:
+  # Joint pos contraint
   joint_percentage: False
   joint_limit: # [1., 1., 1.]
   hfe_limit: # [0.5]
+  # Foot pos contraint
   feet: ['FL', 'FR', 'RL', 'RR']
+  foot_alpha: 0.5
+  foot_beta: 0.5
+  foot_min_z: -0.4
+  foot_max_z: -0.2
   # Activate the numerical control of the jacobian of all contraints. It slow down the execution
   check_J: False
 

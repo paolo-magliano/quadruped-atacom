@@ -192,7 +192,13 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
 
     if constraints_params['feet']:
         for side in constraints_params['feet']:
-            constr_list.add_constraint(FootPosConstraint(side, env_info, check_J=constraints_params['check_J']))
+            constr_list.add_constraint(FootPosConstraint(side, env_info, 
+                                                            check_J=constraints_params['check_J'], 
+                                                            alpha=constraints_params['foot_alpha'],
+                                                            beta=constraints_params['foot_beta'],
+                                                            min_z=constraints_params['foot_min_z'],
+                                                            max_z=constraints_params['foot_max_z']))
+
 
     atacom_controller = ATACOMController(constr_list, dyn,
                                          slack_beta=atacom_params['slack_beta'],
