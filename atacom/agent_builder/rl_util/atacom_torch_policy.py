@@ -5,16 +5,20 @@ from itertools import chain
 
 import torch  
 class AtacomGaussianTorchPolicy(TorchPolicy):
-    def __init__(self, network, input_shape, output_shape, std_0=1., policy_state_shape=None, atacom_controller=None, **params):
+    def __init__(self, network, input_shape, output_shape, mean_n_features, std_n_features, std_0=1., policy_state_shape=None, atacom_controller=None, **params):
         super().__init__(policy_state_shape)
 
         self._action_dim = output_shape[0]
 
-        self._mu = Regressor(TorchApproximator, input_shape, output_shape, network=network, **params)
+        mu_params = params.copy()
+        mu_params['n_features'] = mean_n_features
+        self._mu = Regressor(TorchApproximator, input_shape, output_shape, network=network, **mu_params)
         self._predict_params = dict()
         params['gain_coeff'] = 1e-3
 
-        self._log_sigma = Regressor(TorchApproximator, input_shape, output_shape, network=network, **params)
+        std_params = params.copy()
+        std_params['n_features'] = std_n_features
+        self._log_sigma = Regressor(TorchApproximator, input_shape, output_shape, network=network, **std_params)
         self.init_log_sigma = torch.log(torch.tensor(std_0))
 
         self.atacom_controller = atacom_controller  

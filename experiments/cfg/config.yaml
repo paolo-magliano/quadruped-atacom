@@ -98,17 +98,18 @@ train:
   seed: ${seed}
   checkpoint: ${checkpoint}
   normalize_state: False
-  atacom_policy: False
+  atacom_policy: True
 
   policy:
     std_0: 1.
-    n_features: [512, 256, 128]
+    mean_n_features: [512, 256, 128]
+    std_n_features: [64, 32]
     activation: relu
 
   critic:
     n_features: [512, 256, 128]
     activation: relu
-    batch_size: 6155 # 4096 * 24 / 16
+    batch_size: 6144 # 4096 * 24 / 16
     optimizer:
       params:
         lr: 1e-3
