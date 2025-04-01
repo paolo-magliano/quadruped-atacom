@@ -25,12 +25,13 @@ def get_dataset_info(dataset, deep=False, full=False):
 
 def get_constraint_info(dataset, deep=False, full=False, epsilon=0):
     info = {}
-    for key in dataset.info.keys():
+    for key in dataset.keys():
         if 'constraint' in key:
-            info[key] = _constr_metrics_dict(dataset.info[key], full=full, epsilon=epsilon)
             if deep:
-                for i in range(dataset.info[key].shape[1]):
-                    info[f'{key}_{i}'] = _constr_metrics_dict(dataset.info[key][:, i], full=full, epsilon=epsilon)
+                for i in range(dataset[key].shape[1]):
+                    info[f'{key}_{i}'] = _constr_metrics_dict(dataset[key][:, i], full=full, epsilon=epsilon)
+            else:
+                info[key] = _constr_metrics_dict(dataset[key], full=full, epsilon=epsilon)
 
     return info
 
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     for i in range(12):
         for j in range(len(epoch)):
             ax[i].plot(x[j, :, i], y[j, :, i], label=f'Epoch {epoch[j]}')
-        ax[i].set_title(f'{feet_names[i % 4]} {joint_names[i // 4]}')
+        ax[i].set_title(f'{feet_names[i // 4]} {joint_names[i % 4]}')
         ax[i].set_xlabel('Joint range (%)')
         ax[i].set_ylabel('Violation (%)')
         ax[i].legend()

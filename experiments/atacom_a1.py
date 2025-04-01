@@ -86,7 +86,7 @@ class JointPosConstraint(Constraint):
         return result
 
 class FootPosConstraint(Constraint):
-    def __init__(self, side, env_info, dim_k=3, alpha=0.5, beta=0.5, min_z=-0.5, max_z=-0.1, use_commands=False, check_J=False):
+    def __init__(self, side, env_info, dim_k=3, alpha=0.3, beta=0.3, min_z=-0.4, max_z=-0.2, use_commands=False, check_J=False):
         name = side + '_foot_pos'
         self.logger = env_info['logger'] if 'logger' in env_info else None
         self.get_foot = env_info['fun']['get_relative_link']
@@ -118,7 +118,7 @@ class FootPosConstraint(Constraint):
 
         result = torch.stack([xy, z_high, z_low], dim=1)
         if self.logger is not None and log:
-            self.logger.log(name=self.name, value=torch.stack([xy, torch.maximum(z_high, z_low)], dim=1))
+            self.logger.log(name=self.name, value=result) # value=torch.stack([xy, torch.maximum(z_high, z_low)], dim=1))
         return result.to(q.device)
 
     def df_dq(self, q, z=None):

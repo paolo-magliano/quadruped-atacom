@@ -20,6 +20,7 @@ from rl_util.compute_metric import compute_metrics
 from rl_util.callbacks import LogDataset
 
 from experiments.util.log_info import wandb_init, log_info, clean_dir
+from experiments.rl_util.plot_metric import plot_experiment_metric
 
 from atacom.envs.a1 import A1PDEnv, A1PIEnv
 from atacom_a1 import build_atacom_agent
@@ -103,6 +104,8 @@ def experiment(cfg_dict, logger):
                 wandb.log(log_dict, step=epoch + 1)
                         
                 logger.log_best_agent(rl_agent, R)
+
+    plot_experiment_metric(f'{logger._results_dir}/dataset', f'{logger._results_dir}/plot', cfg_dict['n_epochs'])
 
     if cfg_dict['record'] and os.path.exists(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4"):
         wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4", fps=(1 / env.dt))})

@@ -86,10 +86,8 @@ def get_metrics(dataset, agent, gamma, deep_constr_log=False):
     else:
         V = compute_V(agent, dataset)
 
-    task_info = get_dataset_info(dataset, deep_constr_log)
+    task_info = get_dataset_info(dataset.info, deep_constr_log)
     task_info['episode_length'] = torch.mean(dataset.episodes_length.float()).item()
     task_info.update(Q_info)
 
     return J.item(), R.item(), E.item(), V.item(), task_info
-
-    
