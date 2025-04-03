@@ -106,7 +106,7 @@ train:
   policy:
     std_0: 1.
     mean_n_features: [512, 256, 128]
-    std_n_features: [64, 32]
+    std_n_features: [128, 64, 32]
     activation: relu
 
   critic:
