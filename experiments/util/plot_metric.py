@@ -7,14 +7,15 @@ sys.path.append('/home/magliano/Project/SafeLocomotion')
 
 from atacom.envs.costr_log_utils import get_constraint_info
 from experiments.kinematics_a1 import LinkPos
-from experiments.util.plotter import Plotter
+from experiments.util.lie_group import SO3
 
 def plot_metric(state, env_info, epoch, plot_path):
     constraint_epsilon = 0
     joint_pos = state[:, [ 6,  8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28]]
 
     joint_hist(joint_pos, env_info, epoch, plot_path)
-    foot_hist(joint_pos, env_info, epoch, plot_path)
+    foot_pos_hist(joint_pos, env_info, epoch, plot_path)
+    foot_rot_hist(joint_pos, env_info, epoch, plot_path)
 
 def joint_hist(joint_pos, env_info, epoch, plot_path):
     feet_names = ['FL', 'FR', 'RL', 'RR']
@@ -27,11 +28,11 @@ def joint_hist(joint_pos, env_info, epoch, plot_path):
             axs[i, j].hist(joint_pos[:, i * 3 + j], bins=100)
             axs[i, j].set_title(f"{feet_names[i]} {joint_names[j]}")
 
-    os.makedirs(f"{plot_path}/distribution", exist_ok=True)
-    plt.savefig(f"{plot_path}/distribution/joint_pos_distribution_{epoch}.png")
+    os.makedirs(f"{plot_path}/distribution/epoch_{epoch}", exist_ok=True)
+    plt.savefig(f"{plot_path}/distribution/epoch_{epoch}/joint_pos_distribution_{epoch}.png")
 
 
-def foot_hist(joint_pos, env_info, epoch, plot_path):
+def foot_pos_hist(joint_pos, env_info, epoch, plot_path):
     feet_names = ['FL', 'FR', 'RL', 'RR']
     axes = ['x', 'y', 'z']
 
@@ -46,8 +47,25 @@ def foot_hist(joint_pos, env_info, epoch, plot_path):
             axs[i, j].hist(foot_pos[:, j], bins=100)
             axs[i, j].set_title(f"{feet_names[i]} {axes[j]}")
 
-    os.makedirs(f"{plot_path}/distribution", exist_ok=True)
-    plt.savefig(f"{plot_path}/distribution/feet_pos_distribution_{epoch if epoch is not None else ''}.png")
+    os.makedirs(f"{plot_path}/distribution/epoch_{epoch}", exist_ok=True)
+    plt.savefig(f"{plot_path}/distribution/epoch_{epoch}/foot_pos_distribution_{epoch}.png")
+
+def foot_rot_hist(joint_pos, env_info, epoch, plot_path):
+    feet_names = ['FL', 'FR', 'RL', 'RR']
+
+    feet = [LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side]) for side in feet_names]
+
+    fig, axs = plt.subplots(2, 2, figsize=(15, 15))
+    for i in range(2):
+        for j in range(2):
+            foot = feet[i * 2 + j]
+            foot_rot = foot.get_rot(joint_pos.cuda() + env_info['default_joint_pos']).cpu()
+            foot_angle = torch.norm(SO3.Log(foot_rot), dim=1)
+            axs[i, j].hist(foot_angle, bins=100)
+            axs[i, j].set_title(f"{feet_names[i * 2 + j]}")
+
+    os.makedirs(f"{plot_path}/distribution/epoch_{epoch}", exist_ok=True)
+    plt.savefig(f"{plot_path}/distribution/epoch_{epoch}/foot_rot_distribution_{epoch}.png")
 
 def save_dataset(dataset, dataset_path, epoch):
     os.makedirs(f"{dataset_path}/epoch_{epoch}", exist_ok=True)
@@ -127,9 +145,6 @@ def subplot(num):
     axs = axs.flatten() if num > 1 else [axs]
     return fig, axs
     
-if __name__ == '__main__':
-    path = '/home/magliano/Project/SafeLocomotion/trained_policy/atacom/A1_PI_feet_0.4-0.2_2025-03-31-11-59-19'
-    dataset_path = f'{path}/dataset'
-    plot_path = f'{path}/plot'
-    num_epoch = 15
-    plot_experiment_metric(dataset_path, plot_path, num_epoch)
+
+
+    

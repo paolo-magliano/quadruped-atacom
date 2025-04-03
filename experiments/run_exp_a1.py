@@ -20,7 +20,7 @@ from rl_util.compute_metric import compute_metrics
 from rl_util.callbacks import LogDataset
 
 from experiments.util.log_info import wandb_init, log_info, clean_dir
-from experiments.rl_util.plot_metric import plot_experiment_metric
+from experiments.util.plot_metric import plot_experiment_metric
 
 from atacom.envs.a1 import A1PDEnv, A1PIEnv
 from atacom_a1 import build_atacom_agent

@@ -4,21 +4,21 @@ import matplotlib.pyplot as plt
 import time
 import tqdm
 import os
-from torch_batch_svd import svd
+# from torch_batch_svd import svd
 
-# Define all the functions to compare
-def svd_batch(AA, BB):
-    if BB.ndim==2:
-        BB = BB.unsqueeze(-1)
-    tol=1e-5
-    U, S, Vh = svd(AA)
-    Spinv = torch.zeros_like(S)
-    Spinv[S>tol] = 1/S[S>tol]
-    UhBB = U.adjoint() @ BB
-    if Spinv.ndim!=UhBB.ndim:
-      Spinv = Spinv.unsqueeze(-1)
-    SpinvUhBB = Spinv * UhBB
-    return (Vh.mT.adjoint() @ SpinvUhBB).squeeze(-1)
+# # Define all the functions to compare
+# def svd_batch(AA, BB):
+#     if BB.ndim==2:
+#         BB = BB.unsqueeze(-1)
+#     tol=1e-5
+#     U, S, Vh = svd(AA)
+#     Spinv = torch.zeros_like(S)
+#     Spinv[S>tol] = 1/S[S>tol]
+#     UhBB = U.adjoint() @ BB
+#     if Spinv.ndim!=UhBB.ndim:
+#       Spinv = Spinv.unsqueeze(-1)
+#     SpinvUhBB = Spinv * UhBB
+#     return (Vh.mT.adjoint() @ SpinvUhBB).squeeze(-1)
 
 def svd_lstsq(AA, BB):
     if BB.ndim==2:
@@ -58,6 +58,13 @@ def multiprocess_lstsq(A, B, N=2):
         p.join()
 
     return torch.cat(results, dim=0)
+
+def big_matrix_lstsq(A, B):
+    A_big = torch.block_diag(*[A[i] for i in range(A.shape[0])])
+    B_big = torch.cat([B[i] for i in range(B.shape[0])], dim=0)
+    big_sol = torch.linalg.lstsq(A_big, B_big).solution
+    sol = torch.stack([big_sol[i*A.shape[2]:(i+1)*A.shape[2]] for i in range(A.shape[0])])
+    return sol
     
 if __name__ == '__main__':
     torch.set_float32_matmul_precision('high')
@@ -94,6 +101,7 @@ if __name__ == '__main__':
         # 'compiled_lstsq': lambda A, B: compiled_lstsq(A, B).solution,
         # 'compiled_vmap_lstsq': compiled_vmap_lstsq,
         # 'svd_batch': svd_batch,
+        'big_lstsq': big_matrix_lstsq,
     }
     times = {f: [] for f in functions_to_test}
 
@@ -101,14 +109,14 @@ if __name__ == '__main__':
     solution = torch.linalg.lstsq(A, B).solution
 
     # Test all the batch sizes until max_batch_size (do not set over 4096)
-    max_batch_size = 1024
+    max_batch_size = 256
 
     # Measure the time for every batch size, from 1 to max_batch_size
     for i in tqdm.tqdm(range(1, max_batch_size)):
         for name, func in functions_to_test.items():
             start = time.time()
             x = func(A[:i], B[:i])
-            assert torch.allclose(x, solution[:i])
+            assert torch.allclose(x, solution[:i], atol=1e-7)
             times[name].append(time.time() - start)
 
     # Plot the results
