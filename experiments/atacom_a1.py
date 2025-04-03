@@ -146,17 +146,19 @@ class FootPosConstraint(Constraint):
         return alpha, beta
     
 class FootRotConstraint(Constraint):
-    def __init__(self, env_info, dim_k=4, min_angle=torch.pi/2, max_angle=torch.pi, check_J=False):
+    def __init__(self, env_info, dim_k=4, base_angle=[[0, 0, 0]], min_angle=torch.pi/2, max_angle=torch.pi, check_J=False):
         name = 'Foot_rot'
         self.logger = env_info['logger'] if 'logger' in env_info else None
-        self.min_angle = min_angle / 180 * torch.pi
-        self.max_angle = max_angle / 180 * torch.pi
+        self.base_angle = repeat_until(base_angle, 4)
+        self.min_angle = min_angle
+        self.max_angle = max_angle
         self.max_ground_distance = 0.2
         self.check_J = check_J
         super().__init__(name, dim_q=env_info['n_joints'], dim_k=dim_k, dim_z=0)
 
         self.feet = [LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side]) for side in ['FL', 'FR', 'RL', 'RR']]
-
+        for i, foot in enumerate(self.feet):
+            foot.set_base_rot(SO3.Exp(torch.tensor(self.base_angle[i], device=foot.base_matrix.device)).to(foot.base_matrix.dtype))
     def fun(self, q, z=None, log=True):
         ground_distance, _ = self.get_ground_distance(q)
         constraint_angle = ground_distance * (self.max_angle - self.min_angle) / self.max_ground_distance + self.min_angle
@@ -242,6 +244,7 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
             
     if constraints_params['foot_rot_max'] and constraints_params['foot_rot_min']:
         constr_list.add_constraint(FootRotConstraint(env_info, 
+                                                            base_angle=constraints_params['foot_rot_base'],
                                                             min_angle=constraints_params['foot_rot_min'],
                                                             max_angle=constraints_params['foot_rot_max'],
                                                             check_J=constraints_params['check_J']))
@@ -266,7 +269,8 @@ def repeat_until(values, n):
     if n % len(values) != 0:
         raise Exception('The number of joints must be divisible by the number of joint limits')
     repeat_len = n // len(values)
-    limit = torch.tensor(values, dtype=torch.float32).to(TorchUtils.get_device()).repeat(repeat_len)
+    t_values = torch.tensor(values, dtype=torch.float32).to(TorchUtils.get_device())
+    limit = t_values.repeat((repeat_len, *[1 for _ in range(t_values.ndim - 1)]))
 
     return limit
 

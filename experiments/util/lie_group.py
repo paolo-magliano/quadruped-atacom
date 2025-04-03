@@ -9,16 +9,17 @@ class SO3:
         return skew_matrix(w)
     
     def Log(R):
-        angle = torch.acos((torch.diagonal(R, dim1=-2, dim2=-1).sum(dim=-1) - 1) / 2).unsqueeze(-1).unsqueeze(-1)
+        angle = torch.acos((torch.diagonal(R, dim1=-2, dim2=-1).sum(dim=-1) - 1) / 2).unsqueeze(-1).unsqueeze(-1) + 1e-8
         w_hat = angle * (R - R.mT) / (2 * torch.sin(angle))
         w = SO3.vee(w_hat)
 
         return w
 
     def Exp(w):
-        angle = torch.norm(w, dim=-1).unsqueeze(-1).unsqueeze(-1)
+        angle = torch.norm(w, dim=-1).unsqueeze(-1).unsqueeze(-1) + 1e-8
         w_hat = SO3.hat(w)
-        R  = torch.eye(3).unsqueeze(0).repeat(w.shape[0], 1, 1).to(w.device) + torch.sin(angle) * w_hat / angle + (1 - torch.cos(angle)) * w_hat @ w_hat / torch.pow(angle, 2)
+        eye = torch.eye(3).unsqueeze(0).repeat(w.shape[0], 1, 1).to(w.device) if w.ndim > 1 else torch.eye(3).to(w.device)
+        R  = eye + torch.sin(angle) * w_hat / angle + (1 - torch.cos(angle)) * w_hat @ w_hat / torch.pow(angle, 2)
 
         return R
     
@@ -26,10 +27,11 @@ class SO3:
         return R
 
     def Jl(w):
-        angle = torch.norm(w, dim=-1).unsqueeze(-1).unsqueeze(-1)
+        angle = torch.norm(w, dim=-1).unsqueeze(-1).unsqueeze(-1) + 1e-8
         w_hat = SO3.hat(w)
 
-        Jl = torch.eye(3).unsqueeze(0).repeat(w.shape[0], 1, 1).to(w.device) + (1 - torch.cos(angle)) * w_hat / torch.pow(angle, 2) + (angle - torch.sin(angle)) * w_hat @ w_hat / torch.pow(angle, 3)
+        eye = torch.eye(3).unsqueeze(0).repeat(w.shape[0], 1, 1).to(w.device) if w.ndim > 1 else torch.eye(3).to(w.device)
+        Jl = eye + (1 - torch.cos(angle)) * w_hat / torch.pow(angle, 2) + (angle - torch.sin(angle)) * w_hat @ w_hat / torch.pow(angle, 3)
 
         return Jl
 
@@ -130,11 +132,8 @@ class SE3:
         plt.show()
     
 def skew_matrix(v):
-    zeros = torch.zeros(v.shape[0]).to(v.device)
-    row_0 = torch.stack([zeros, -v[:, 2], v[:, 1]], dim=1)
-    row_1 = torch.stack([v[:, 2], zeros, -v[:, 0]], dim=1)
-    row_2 = torch.stack([-v[:, 1], v[:, 0], zeros], dim=1)
-    return torch.stack((row_0, row_1, row_2), dim=1)
-
-
-
+    zeros = torch.zeros(v.shape[0]).to(v.device) if v.ndim > 1 else torch.tensor(0).to(v.device)
+    row_0 = torch.stack([zeros, -v[..., 2], v[..., 1]], dim=-1)
+    row_1 = torch.stack([v[..., 2], zeros, -v[..., 0]], dim=-1)
+    row_2 = torch.stack([-v[..., 1], v[..., 0], zeros], dim=-1)
+    return torch.stack((row_0, row_1, row_2), dim=-1)

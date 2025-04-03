@@ -14,7 +14,7 @@ from atacom.envs.a1 import A1PDEnv, A1PIEnv
 def main(cfg: DictConfig) -> None:
     cfg_dict = omegaconf_to_dict(cfg)
 
-    path = '/home/magliano/Project/SafeLocomotion/trained_policy/atacom/A1_PI_feet_0.4-0.2_2025-03-31-11-59-19'
+    path = '/home/magliano/Project/SafeLocomotion/trained_policy/baseline/A1_PI_2025-04-02-09-30-42'
     dataset_path = f'{path}/dataset'
     plot_path = f'{path}/plot'
     num_epoch = 15

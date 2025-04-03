@@ -16,6 +16,14 @@ class LinkPos(object):
 
         self.end_effector_chain = pk.SerialChain(self.chain, end_effector).to(dtype=self.dtype, device=self.device)
 
+    def set_base_rot(self, rot):
+        assert rot.shape == (3, 3)
+        self.base_matrix[:, :3, :3] = rot.unsqueeze(0).to(self.base_matrix.device).to(self.base_matrix.dtype)
+        
+    def set_base_pos(self, pos):
+        assert pos.shape == (3,)
+        self.base_matrix[:, :3, 3] = pos.unsqueeze(0).to(self.base_matrix.device).to(self.base_matrix.dtype)
+
     def get_matrix(self, q):
         self._check_dtype_device(q)
         return self.end_effector_chain.forward_kinematics(q[..., self.q_idx]).get_matrix() 
