@@ -11,6 +11,7 @@ from atacom import ATACOMController
 from atacom import AgentWrapper
 
 from experiments.kinematics_a1 import LinkPos
+from experiments.util.lie_group import SO3
 
 class ATACOMWrapper(AgentWrapper):
     def __init__(self, env_info, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False, atacom_enable=None):
@@ -144,6 +145,57 @@ class FootPosConstraint(Constraint):
 
         return alpha, beta
     
+class FootRotConstraint(Constraint):
+    def __init__(self, env_info, dim_k=4, min_angle=torch.pi/2, max_angle=torch.pi, check_J=False):
+        name = 'Foot_rot'
+        self.logger = env_info['logger'] if 'logger' in env_info else None
+        self.min_angle = min_angle / 180 * torch.pi
+        self.max_angle = max_angle / 180 * torch.pi
+        self.max_ground_distance = 0.2
+        self.check_J = check_J
+        super().__init__(name, dim_q=env_info['n_joints'], dim_k=dim_k, dim_z=0)
+
+        self.feet = [LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side]) for side in ['FL', 'FR', 'RL', 'RR']]
+
+    def fun(self, q, z=None, log=True):
+        ground_distance, _ = self.get_ground_distance(q)
+        constraint_angle = ground_distance * (self.max_angle - self.min_angle) / self.max_ground_distance + self.min_angle
+        result = torch.zeros(q.shape[0], self.dim_k).to(q.device) 
+        for i, foot in enumerate(self.feet):
+            rot = foot.get_rot(q)
+            angle = torch.norm(SO3.Log(rot), dim=1)
+            result[:, i] = angle - constraint_angle[:, i]
+
+        if self.logger is not None and log:
+            self.logger.log(name=self.name, value=result)
+        return result.to(q.device)
+    
+    def df_dq(self, q, z=None):
+        J_ground = self.get_ground_distance_df_dq(q)
+        J_constraint_angle = J_ground * (self.max_angle - self.min_angle) / self.max_ground_distance
+        result = torch.zeros(q.shape[0], self.dim_k, self.dim_q).to(q.device)
+        for i, foot in enumerate(self.feet):
+            J_rot = foot.get_J(q)[:, 3:]
+            J_angle = (SO3.Log(foot.get_rot(q)) / torch.norm(SO3.Log(foot.get_rot(q)), dim=1).unsqueeze(-1)).unsqueeze(1) @ J_rot
+            result[:, i] = J_angle.squeeze(1) - J_constraint_angle[:, i]
+
+        if self.check_J:
+            check_jacobian(self.fun, result, q, z)
+        return result.to(q.device)
+
+    def get_ground_distance(self, q):
+        feet_z = torch.stack([foot.get_pos(q)[:, 2] for foot in self.feet], dim=-1)
+        min_z = feet_z.min(dim=1)
+        return feet_z - min_z.values.unsqueeze(-1), min_z.indices
+    
+    def get_ground_distance_df_dq(self, q):
+        J_ground = torch.eye(len(self.feet)).unsqueeze(0).repeat(q.shape[0], 1, 1).to(q.device) 
+        J_z =  torch.stack([foot.get_J(q)[:, 2] for i, foot in enumerate(self.feet)], dim=1)
+        _, min_z_idx = self.get_ground_distance(q)
+        J_ground[range(q.shape[0]), :, min_z_idx] += -1
+
+        return J_ground @ J_z
+
 def check_jacobian(fun, result, q, z):
     J_num = torch.empty_like(result)[0]
     for i in range(J_num.shape[0]):
@@ -179,14 +231,20 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
         print(f'Default joint pos: {env_info["default_joint_pos"]}')
         print(f'Env joint pos limit: {env_info["joint_pos_limit"]}')
 
-    if constraints_params['feet']:
-        for side in constraints_params['feet']:
+    if constraints_params['feet_pos']:
+        for side in constraints_params['feet_pos']:
             constr_list.add_constraint(FootPosConstraint(side, env_info, 
                                                             check_J=constraints_params['check_J'], 
-                                                            alpha=constraints_params['foot_alpha'],
-                                                            beta=constraints_params['foot_beta'],
-                                                            min_z=constraints_params['foot_min_z'],
-                                                            max_z=constraints_params['foot_max_z']))
+                                                            alpha=constraints_params['foot_pos_alpha'],
+                                                            beta=constraints_params['foot_pos_beta'],
+                                                            min_z=constraints_params['foot_pos_min_z'],
+                                                            max_z=constraints_params['foot_pos_max_z']))
+            
+    if constraints_params['foot_rot_max'] and constraints_params['foot_rot_min']:
+        constr_list.add_constraint(FootRotConstraint(env_info, 
+                                                            min_angle=constraints_params['foot_rot_min'],
+                                                            max_angle=constraints_params['foot_rot_max'],
+                                                            check_J=constraints_params['check_J']))
 
 
     atacom_controller = ATACOMController(constr_list, dyn,

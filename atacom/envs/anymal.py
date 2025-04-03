@@ -4,7 +4,7 @@ import pinocchio as pin
 from mushroom_rl.environments.isaac_env import IsaacEnv
 
 from atacom.envs.costr_log_utils import ConstrLogger
-from atacom.envs.lie_group_utils import SE3
+from experiments.util.lie_group_single_thread import SE3
 
 class AnymalEnv(IsaacEnv):
     def __init__(self, cfg=None, headless=False, backend='torch'):

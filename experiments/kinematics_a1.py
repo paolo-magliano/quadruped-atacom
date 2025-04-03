@@ -12,13 +12,19 @@ class LinkPos(object):
         self.chain = pk.build_chain_from_urdf(open(urdf_path, mode="rb").read())
 
         base_chain = pk.SerialChain(self.chain, base).to(dtype=self.dtype, device=self.device)
-        self.base_pos = base_chain.forward_kinematics(default_joint_angles[self.q_idx][:len(base_chain.get_joint_parameter_names())]).get_matrix()[0, :3, 3]
+        self.base_matrix = base_chain.forward_kinematics(default_joint_angles[self.q_idx][:len(base_chain.get_joint_parameter_names())]).get_matrix()
 
         self.end_effector_chain = pk.SerialChain(self.chain, end_effector).to(dtype=self.dtype, device=self.device)
 
-    def get_pos(self, q):
+    def get_matrix(self, q):
         self._check_dtype_device(q)
-        return self.end_effector_chain.forward_kinematics(q[..., self.q_idx]).get_matrix()[:, :3, 3] - self.base_pos
+        return self.end_effector_chain.forward_kinematics(q[..., self.q_idx]).get_matrix() 
+
+    def get_pos(self, q):
+        return self.get_matrix(q)[:, :3, 3] - self.base_matrix[:, :3, 3]
+    
+    def get_rot(self, q):
+        return self.get_matrix(q)[:, :3, :3] @ torch.inverse(self.base_matrix[:, :3, :3])
     
     def get_J(self, q):
         self._check_dtype_device(q)
@@ -28,8 +34,8 @@ class LinkPos(object):
         return J
     
     def _check_dtype_device(self, q):
-        if q.dtype != self.end_effector_chain.dtype or q.dtype != self.base_pos.dtype or q.device != self.end_effector_chain.device or q.device != self.base_pos.device:
+        if q.dtype != self.end_effector_chain.dtype or q.dtype != self.base_matrix.dtype or q.device != self.end_effector_chain.device or q.device != self.base_matrix.device:
             self.end_effector_chain = self.end_effector_chain.to(dtype=q.dtype, device=q.device)
-            self.base_pos = self.base_pos.to(dtype=q.dtype, device=q.device)
+            self.base_matrix = self.base_matrix.to(dtype=q.dtype, device=q.device)
     
         

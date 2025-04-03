@@ -74,11 +74,14 @@ constraints:
   joint_limit: # [1., 1., 1.]
   hfe_limit: # [0.5]
   # Foot pos contraint
-  feet: ['FL', 'FR', 'RL', 'RR']
-  foot_alpha: 0.5
-  foot_beta: 0.5
-  foot_min_z: -0.4
-  foot_max_z: -0.2
+  feet_pos: # ['FL', 'FR', 'RL', 'RR']
+  foot_pos_alpha: 0.5
+  foot_pos_beta: 0.5
+  foot_pos_min_z: -0.4
+  foot_pos_max_z: -0.2
+  # Foot rot contraint
+  foot_rot_max: 180
+  foot_rot_min: 90
   # Activate the numerical control of the jacobian of all contraints. It slow down the execution
   check_J: False
 
