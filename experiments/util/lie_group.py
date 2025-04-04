@@ -9,7 +9,8 @@ class SO3:
         return skew_matrix(w)
     
     def Log(R):
-        angle = torch.acos((torch.diagonal(R, dim1=-2, dim2=-1).sum(dim=-1) - 1) / 2).unsqueeze(-1).unsqueeze(-1) + 1e-8
+        cos = torch.clamp((torch.diagonal(R, dim1=-2, dim2=-1).sum(dim=-1) - 1) / 2, -1, 1)
+        angle = torch.acos(cos).unsqueeze(-1).unsqueeze(-1) + 1e-8
         w_hat = angle * (R - R.mT) / (2 * torch.sin(angle))
         w = SO3.vee(w_hat)
 
