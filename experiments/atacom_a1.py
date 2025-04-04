@@ -146,7 +146,7 @@ class FootPosConstraint(Constraint):
         return alpha, beta
     
 class FootRotConstraint(Constraint):
-    def __init__(self, env_info, dim_k=4, base_angle=[[0, 0, 0]], min_angle=torch.pi/2, max_angle=torch.pi, check_J=False):
+    def __init__(self, env_info, dim_k=4, base_angle=None, min_angle=torch.pi/2, max_angle=torch.pi, check_J=False):
         name = 'Foot_rot'
         self.logger = env_info['logger'] if 'logger' in env_info else None
         self.base_angle = repeat_until(base_angle, 4)
@@ -157,8 +157,10 @@ class FootRotConstraint(Constraint):
         super().__init__(name, dim_q=env_info['n_joints'], dim_k=dim_k, dim_z=0)
 
         self.feet = [LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side]) for side in ['FL', 'FR', 'RL', 'RR']]
-        for i, foot in enumerate(self.feet):
-            foot.set_base_rot(SO3.Exp(torch.tensor(self.base_angle[i], device=foot.base_matrix.device)).to(foot.base_matrix.dtype))
+        if base_angle is not None:
+            for i, foot in enumerate(self.feet):
+                foot.set_base_rot(SO3.Exp(torch.tensor(self.base_angle[i], device=foot.base_matrix.device)).to(foot.base_matrix.dtype))
+    
     def fun(self, q, z=None, log=True):
         ground_distance, _ = self.get_ground_distance(q)
         constraint_angle = ground_distance * (self.max_angle - self.min_angle) / self.max_ground_distance + self.min_angle

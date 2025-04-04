@@ -11,10 +11,13 @@ class LinkPos(object):
 
         self.chain = pk.build_chain_from_urdf(open(urdf_path, mode="rb").read())
 
-        base_chain = pk.SerialChain(self.chain, base).to(dtype=self.dtype, device=self.device)
-        self.base_matrix = base_chain.forward_kinematics(default_joint_angles[self.q_idx][:len(base_chain.get_joint_parameter_names())]).get_matrix()
+        self.base_matrix = torch.eye(4, 4).unsqueeze(0).to(self.dtype).to(self.device)
 
+        self.base_chain = pk.SerialChain(self.chain, base).to(dtype=self.dtype, device=self.device)
         self.end_effector_chain = pk.SerialChain(self.chain, end_effector).to(dtype=self.dtype, device=self.device)
+
+        self.set_base_pos(self.base_chain.forward_kinematics(default_joint_angles[self.q_idx][:len(self.base_chain.get_joint_parameter_names())]).get_matrix()[:, :3, 3].squeeze(0))
+        self.set_base_rot(self.get_matrix(default_joint_angles)[:, :3, :3].squeeze(0))
 
     def set_base_rot(self, rot):
         assert rot.shape == (3, 3)
@@ -32,7 +35,7 @@ class LinkPos(object):
         return self.get_matrix(q)[:, :3, 3] - self.base_matrix[:, :3, 3]
     
     def get_rot(self, q):
-        return self.get_matrix(q)[:, :3, :3] @ torch.inverse(self.base_matrix[:, :3, :3])
+        return self.get_matrix(q)[:, :3, :3] @ self.base_matrix[:, :3, :3].mT
     
     def get_J(self, q):
         self._check_dtype_device(q)
