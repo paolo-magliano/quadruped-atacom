@@ -149,7 +149,7 @@ class FootRotConstraint(Constraint):
     def __init__(self, env_info, dim_k=4, base_angle=None, min_angle=torch.pi/2, max_angle=torch.pi, check_J=False):
         name = 'Foot_rot'
         self.logger = env_info['logger'] if 'logger' in env_info else None
-        self.base_angle = repeat_until(base_angle, 4)
+        self.base_angle = repeat_until(base_angle, 4) if base_angle is not None else None
         self.min_angle = min_angle
         self.max_angle = max_angle
         self.max_ground_distance = 0.2
