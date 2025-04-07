@@ -28,6 +28,7 @@ class AtacomGaussianTorchPolicy(TorchPolicy):
             _mu='mushroom',
             _predict_params='pickle',
             _log_sigma='mushroom',
+            init_log_sigma='pickle',
         )
 
     def draw_action_t(self, state):

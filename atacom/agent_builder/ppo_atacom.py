@@ -15,6 +15,10 @@ class AtacomPPO(NikitaPPO):
             critic_fit_params, clip_grad_norm, schedule, desired_kl)
         self._ent_decay = ent_decay
 
+        self._add_save_attr(
+            _ent_decay='pickle',
+        )
+
     def fit(self, dataset):
         state, action, reward, next_state, absorbing, last = dataset.parse(to='torch')
         state, next_state, state_old = self._preprocess_state(state, next_state)
