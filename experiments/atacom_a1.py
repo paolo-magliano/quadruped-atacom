@@ -86,6 +86,43 @@ class JointPosConstraint(Constraint):
         #     J_num[i] = torch.tensor(J_i).to(q.device)
         return result
 
+class HeightConstraint(Constraint):
+    def __init__(self, side, env_info, dim_k=2, min_z=-0.4, max_z=-0.2, check_J=False):
+        name = side + '_foot_pos'
+        self.logger = env_info['logger'] if 'logger' in env_info else None
+        self.link_name = side + '_foot'
+        self.min_z = min_z
+        self.max_z = max_z
+        self.check_J = check_J
+        super().__init__(name, dim_q=env_info['n_joints'], dim_k=dim_k, dim_z=0)
+
+        self.foot = LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side])
+
+    def fun(self, q, z=None, log=True):
+        pos = self.foot.get_pos(q)
+
+        z_high = pos[:, 2] - self.max_z
+        z_low = self.min_z - pos[:, 2]
+
+        result = torch.stack([z_high, z_low], dim=1)
+        if self.logger is not None and log:
+            self.logger.log(name=self.name, value=result) # value=torch.stack([xy, torch.maximum(z_high, z_low)], dim=1))
+        return result.to(q.device)
+
+    def df_dq(self, q, z=None):
+
+        J = self.foot.get_J(q)
+
+        J_z_high = J[:, 2]
+        J_z_low = -J[:, 2]
+
+        result = torch.stack([J_z_high, J_z_low], dim=1).to(q.device)
+
+        if self.check_J:
+            check_jacobian(self.fun, result, q, z)
+
+        return result
+
 class FootPosConstraint(Constraint):
     def __init__(self, side, env_info, dim_k=3, alpha=0.3, beta=0.3, min_z=-0.4, max_z=-0.2, use_commands=False, check_J=False):
         name = side + '_foot_pos'
@@ -237,12 +274,18 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
 
     if constraints_params['feet_pos']:
         for side in constraints_params['feet_pos']:
-            constr_list.add_constraint(FootPosConstraint(side, env_info, 
-                                                            check_J=constraints_params['check_J'], 
-                                                            alpha=constraints_params['foot_pos_alpha'],
-                                                            beta=constraints_params['foot_pos_beta'],
-                                                            min_z=constraints_params['foot_pos_min_z'],
-                                                            max_z=constraints_params['foot_pos_max_z']))
+            if constraints_params['foot_pos_alpha'] and constraints_params['foot_pos_beta'] and constraints_params['foot_pos_min_z'] and constraints_params['foot_pos_max_z']:
+                constr_list.add_constraint(FootPosConstraint(side, env_info, 
+                                                                check_J=constraints_params['check_J'], 
+                                                                alpha=constraints_params['foot_pos_alpha'],
+                                                                beta=constraints_params['foot_pos_beta'],
+                                                                min_z=constraints_params['foot_pos_min_z'],
+                                                                max_z=constraints_params['foot_pos_max_z']))
+            elif constraints_params['foot_pos_min_z'] and constraints_params['foot_pos_max_z']:
+                constr_list.add_constraint(HeightConstraint(side, env_info, 
+                                                                check_J=constraints_params['check_J'], 
+                                                                min_z=constraints_params['foot_pos_min_z'],
+                                                                max_z=constraints_params['foot_pos_max_z']))
             
     if constraints_params['foot_rot_max'] and constraints_params['foot_rot_min']:
         constr_list.add_constraint(FootRotConstraint(env_info, 
