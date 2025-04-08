@@ -335,23 +335,23 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
 
     if constraints_params['feet_pos']:
         for side in constraints_params['feet_pos']:
-            if constraints_params['foot_pos_alpha'] and constraints_params['foot_pos_beta'] and constraints_params['foot_pos_min_z'] and constraints_params['foot_pos_max_z']:
+            if isinstance(constraints_params['foot_pos_min_z'], (int, float)) and isinstance(constraints_params['foot_pos_max_z'], (int, float)) and isinstance(constraints_params['foot_pos_alpha'], (int, float)) and isinstance(constraints_params['foot_pos_beta'], (int, float)):
                 constr_list.add_constraint(FootPosConstraint(side, env_info, 
                                                                 check_J=constraints_params['check_J'], 
                                                                 alpha=constraints_params['foot_pos_alpha'],
                                                                 beta=constraints_params['foot_pos_beta'],
                                                                 min_z=constraints_params['foot_pos_min_z'],
                                                                 max_z=constraints_params['foot_pos_max_z']))
-            elif constraints_params['foot_pos_min_z'] and constraints_params['foot_pos_max_z']:
+            elif isinstance(constraints_params['foot_pos_min_z'], (int, float)) and isinstance(constraints_params['foot_pos_max_z'], (int, float)):
                 constr_list.add_constraint(HeightConstraint(side, env_info, 
                                                                 check_J=constraints_params['check_J'], 
                                                                 min_z=constraints_params['foot_pos_min_z'],
                                                                 max_z=constraints_params['foot_pos_max_z']))
-            elif constraints_params['foot_pos_min_z']:
+            elif isinstance(constraints_params['foot_pos_min_z'], (int, float)):
                 constr_list.add_constraint(MaxHeightConstraint(side, env_info, 
                                                                 check_J=constraints_params['check_J'], 
                                                                 z=constraints_params['foot_pos_min_z']))
-            elif constraints_params['foot_pos_max_z']:
+            elif isinstance(constraints_params['foot_pos_max_z'], (int, float)):
                 constr_list.add_constraint(MinHeightConstraint(side, env_info, 
                                                                 check_J=constraints_params['check_J'], 
                                                                 z=constraints_params['foot_pos_max_z']))
