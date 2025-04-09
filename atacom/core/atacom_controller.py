@@ -77,9 +77,6 @@ class ATACOMController:
         J_G = self.J_G(q, z)
         J_u = self.J_u(J_G, mu)
 
-        constraint_direction = self.constraint_direction(J_G, psi, u)
-        tangent_index = (constraint_direction > 0).repeat_interleave(3, dim=1)
-
         if self.drift_compensation_type == 'vanilla':
             u_drift_compensation = torch.linalg.lstsq(J_u, -psi - self.lambda_c * residual).solution
         elif self.drift_compensation_type == 'enforced':
@@ -100,13 +97,15 @@ class ATACOMController:
                 scale[eff_scale_idx] = eff_scale
             J_u = torch.hstack([J_G, scale * self.slack.alpha(mu)])
             u_drift_compensation = torch.linalg.lstsq(J_u, -psi - self.lambda_c * residual).solution
-
+        
+        # Null negative constraint directions
+        constraint_direction = self.constraint_direction(J_G, psi, u)
+        J_u[constraint_direction < 0] = 0
 
         B_u = smooth_basis(J_u)[..., :self.system_dynamics.dim_u]
         self.u_auxiliary = u_drift_compensation[..., :-self.constraints.dim_k]
         self.u_tangent = B_u[..., :-self.constraints.dim_k, :] @ u.unsqueeze(-1)
         self.u_tangent = self.u_tangent.squeeze(-1)
-        self.u_tangent[~tangent_index] = u[~tangent_index]
         u_s = self.u_auxiliary + self.u_tangent
         return u_s, B_u
 
