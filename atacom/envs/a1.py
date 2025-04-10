@@ -1,5 +1,6 @@
 import torch
 from pathlib import Path
+import itertools
 
 from mushroom_rl.environments.isaacsim_envs.isaac_a1_pos_action import A1Pos 
 from mushroom_rl.environments.isaacsim_envs.isaac_a1_vel_action import A1Vel
@@ -8,6 +9,7 @@ from mushroom_rl.utils.isaac_sim import ObservationType
 from mushroom_rl.rl_utils.spaces import Box
 
 from atacom.envs.costr_log_utils import ConstrLogger
+from atacom.util.extended_state_observer import Observer
 
 from experiments.util.plotter import Plotter, StoreData
 
@@ -28,6 +30,15 @@ class A1EffVel(A1Eff):
         self.plotter = Plotter(data_dim=2, n_row=4, n_col=3, title="pi_controller", path="plot/controller", data_labels=["target_action", "actual_action"])
         self.controller_data = StoreData(data_dim=2, n_row=4, n_col=3, num_envs=num_envs)
 
+        state_gains = [50., 50.]
+        self.disturbance_gains = [1000., 500.]
+
+        self.observers = [Observer(num_envs, self.NUM_DOFS, self.dt, self._device, s_g, d_g) for s_g, d_g in zip(state_gains, self.disturbance_gains)]
+
+        self.observer_plotter = Plotter(data_dim=len(self.observers) + 1, data_len=100, n_row=4, n_col=3, title="observer", path="plot/observer", data_labels=["state", *[f'sg_{s_g}_dg_{d_g}' for s_g, d_g in zip(state_gains, self.disturbance_gains)]])
+        self.disturbance_plotter = Plotter(data_dim=len(self.observers) + 1, data_len=50, n_row=4, n_col=3, title="disturbance", path="plot/observer", data_labels=["velocity", *[f'sg_{s_g}_dg_{d_g}' for s_g, d_g in zip(state_gains, self.disturbance_gains)]])
+
+
     def _set_controller_gains(self, Kp, Kd, Ki):
         self._Kp = self._reapeat_dof(Kp)
         self._Kd = self._reapeat_dof(Kd)
@@ -40,6 +51,8 @@ class A1EffVel(A1Eff):
         return torch.tensor(value).repeat(repeat_len).to(self._device)
 
     def _compute_torque(self, action, joint_vels, joint_pos):
+        # action = torch.zeros_like(action)
+        # action = action - self.observers[0].get_disturbance_estimate() / self.disturbance_gains[0] * 100 
         self._torques = self._Kp * (self._action_scale * action - joint_vels) + self._Kd * (self._last_joint_vel - joint_vels) +  self._Ki * self._integral_error
 
         not_sat = self._torques.abs() < self._effort_limit
@@ -52,7 +65,21 @@ class A1EffVel(A1Eff):
     
     def reset_all(self, env_mask, state=None):
         self._integral_error[env_mask] = 0.
+        for observer in self.observers:
+            observer.reset()
         return super().reset_all(env_mask, state)
+    
+    def step_all(self, env_mask, action):
+        obs, reward, done, info = super().step_all(env_mask, action)
+        ob_state = obs[:, self.observation_helper.obs_idx_map["joint_pos"]]
+        ob_vel = obs[:, self.observation_helper.obs_idx_map["joint_vel"]]
+
+        # plot_state = torch.stack([ob_state, *[observer.update_estimate(ob_state, action)[0] for observer in self.observers]], dim=1)
+        # self.observer_plotter.add_data(plot_state[0])
+        # plot_vel = torch.stack([ob_vel, *[observer.get_disturbance_estimate() / self.disturbance_gains[i] * 100 for i, observer in enumerate(self.observers)]], dim=1)
+        # self.disturbance_plotter.add_data(plot_vel[0])
+
+        return obs, reward, done, info
     
     # def _step_finalize(self, env_indices):
     #     super()._step_finalize(env_indices)
