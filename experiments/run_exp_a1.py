@@ -105,7 +105,7 @@ def experiment(cfg_dict, logger):
                         
                 logger.log_best_agent(rl_agent, R)
 
-    plot_experiment_metric(f'{logger._results_dir}/dataset', f'{logger._results_dir}/plot', cfg_dict['n_epochs'])
+        plot_experiment_metric(f'{logger._results_dir}/dataset', f'{logger._results_dir}/plot', cfg_dict['n_epochs'])
 
     if cfg_dict['record'] and os.path.exists(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4"):
         wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4", fps=(1 / env.dt))})
