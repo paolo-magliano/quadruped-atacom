@@ -22,7 +22,7 @@ from rl_util.callbacks import LogDataset
 from experiments.util.log_info import wandb_init, log_info, clean_dir
 from experiments.util.plot_metric import plot_experiment_metric
 
-from atacom.envs.a1 import A1PDEnv, A1PIEnv
+from atacom.envs.a1 import A1PIEnv
 from atacom_a1 import build_atacom_agent
 
 import cProfile
@@ -47,12 +47,7 @@ def main(cfg: DictConfig) -> None:
         clean_dir(logger._results_dir)
 
 def experiment(cfg_dict, logger):
-    if cfg_dict['control']['type'] == 'PI':
-        env, env_info = A1PIEnv.build_env(cfg_dict)
-    elif cfg_dict['control']['type'] == 'PD':
-        env, env_info = A1PDEnv.build_env(cfg_dict)
-    else:
-        raise ValueError(f"Invalid control_type: {cfg_dict['control']['type']}")
+    env, env_info = A1PIEnv.build_env(cfg_dict)
     env.seed(cfg_dict['seed'])
 
     cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])
@@ -82,9 +77,6 @@ def experiment(cfg_dict, logger):
         # Write logging
         log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, -1)
         wandb.log(log_dict, step=0)
-        if cfg_dict['test'] and cfg_dict['record']:
-            compute_metrics(core, cfg_dict['eval'], env_info, 0)
-            # wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-1.mp4", fps=(1 / env.dt))}, step=0)
 
     profile = cProfile.Profile()
     profile.enable()

@@ -43,6 +43,8 @@ class Plotter():
                 for k in range(self.data.shape[0]):
                     if self.plot_type == 'plot':          
                         axes[i, j].plot(self.data[k, :, idx], label=self.data_labels[k] if self.data_labels is not None else None, alpha=0.7)
+                        if k == 0:
+                            axes[i, j].plot(torch.tensor(self.data[k, :, idx].mean()).unsqueeze(0).repeat(self.data_len), label=f'mean_{self.data[k, :, idx].mean():.3f}', linestyle='--', color='black')
                     elif self.plot_type == 'hist':
                         axes[i, j].hist(self.data[k, :, idx], bins=100, label=self.data_labels[k] if self.data_labels is not None else None, alpha=0.7)
                     else:
@@ -54,6 +56,7 @@ class Plotter():
             os.makedirs(self.path)
 
         plt.savefig(f'{self.path}/{self.title}_{self.n_plot}.png')
+        plt.close()
         self.n_plot += 1
 
     def clean(self):

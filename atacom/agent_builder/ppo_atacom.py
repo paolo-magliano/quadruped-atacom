@@ -1,11 +1,11 @@
 import torch
 import matplotlib.pyplot as plt
 
-from mushroom_rl.algorithms.actor_critic.deep_actor_critic.ppo_nikita import NikitaPPO
+from mushroom_rl.algorithms.actor_critic.deep_actor_critic.ppo_rudin import RudinPPO
 from mushroom_rl.rl_utils.value_functions import compute_gae
 from mushroom_rl.utils.minibatches import minibatch_generator
 
-class AtacomPPO(NikitaPPO):
+class AtacomPPO(RudinPPO):
 
     def __init__(self, mdp_info, policy, actor_optimizer, critic_params,
                  n_epochs_policy, batch_size, eps_ppo, lam, ent_coeff=0.0,

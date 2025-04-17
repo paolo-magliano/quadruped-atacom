@@ -21,7 +21,6 @@ learn:
   quiet: ${quiet}
 
 control:
-  type: 'PI' # PD or PI
   action_scale: 3.5
   # Kp: [1.2, 2.45, 1.2] Kd: [0.01, 0.005, 0.0] Ki: [0.2, 0.2, 0.8]
   Kp: [1.]
@@ -75,14 +74,14 @@ constraints:
   hfe_limit: # [0.5]
   # Foot pos contraint
   feet_pos: ['FL', 'FR', 'RL', 'RR']
-  foot_pos_alpha: 0.5
-  foot_pos_beta: 0.5
-  foot_pos_min_z: -0.4
-  foot_pos_max_z: -0.2
+  foot_pos_alpha: # 0.5
+  foot_pos_beta: # 0.5
+  foot_pos_min_z: # -0.4
+  foot_pos_max_z: # -0.1
   # Foot rot contraint
-  foot_rot_base: [[0., 0., 0.]]
-  foot_rot_max: 0.6
-  foot_rot_min: 0.3
+  foot_rot_base: 
+  foot_rot_max: 1.57
+  foot_rot_min: # 0.8
   # Activate the numerical control of the jacobian of all contraints. It slow down the execution
   check_J: False
 
@@ -127,7 +126,7 @@ train:
     batch_size: 6144 # 4096 * 24 / 16
     eps_ppo: 0.2
     lam: 0.95
-    ent_coeff: 1e-4 # 0.01 for Nikita, 5e-4 for PD and 1e-4 for PI
+    ent_coeff: 1e-3 # 0.01 for Nikita, 5e-4 for PD and 1e-4 for PI
     ent_decay: 0.
     schedule: 'adaptive' # could be adaptive, fixed
     desired_kl: 0.01
