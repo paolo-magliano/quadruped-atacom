@@ -50,7 +50,7 @@ class A1EffVel(A1Walking):
         return torch.tensor(value).repeat(repeat_len).to(self._device)
 
     def _compute_torque(self, action, joint_vels, joint_pos):
-        action = torch.zeros_like(action)
+        # action = torch.zeros_like(action)
         # action = action - self.observers[0].get_disturbance_estimate() / self.disturbance_gains[0] * 100 
         self._torques = self._Kp * (self._action_scale * action - joint_vels) + self._Kd * (self._last_joint_vel - joint_vels) +  self._Ki * self._integral_error
 
@@ -68,17 +68,17 @@ class A1EffVel(A1Walking):
             observer.reset()
         return super().reset_all(env_mask, state)
     
-    def step_all(self, env_mask, action):
-        obs, reward, done, info = super().step_all(env_mask, action)
-        ob_state = obs[:, self.observation_helper.obs_idx_map["joint_pos"]]
-        ob_vel = obs[:, self.observation_helper.obs_idx_map["joint_vel"]]
+    # def step_all(self, env_mask, action):
+    #     obs, reward, done, info = super().step_all(env_mask, action)
+    #     ob_state = obs[:, self.observation_helper.obs_idx_map["joint_pos"]]
+    #     ob_vel = obs[:, self.observation_helper.obs_idx_map["joint_vel"]]
 
-        plot_state = torch.stack([ob_state, *[observer.update_estimate(ob_state, action)[0] for observer in self.observers]], dim=1)
-        self.observer_plotter.add_data(plot_state[0])
-        plot_vel = torch.stack([ob_vel, *[observer.get_disturbance_estimate() / 10 for i, observer in enumerate(self.observers)]], dim=1)
-        self.disturbance_plotter.add_data(plot_vel[0])
+    #     plot_state = torch.stack([ob_state, *[observer.update_estimate(ob_state, action)[0] for observer in self.observers]], dim=1)
+    #     self.observer_plotter.add_data(plot_state[0])
+    #     plot_vel = torch.stack([ob_vel, *[observer.get_disturbance_estimate() / 10 for i, observer in enumerate(self.observers)]], dim=1)
+    #     self.disturbance_plotter.add_data(plot_vel[0])
 
-        return obs, reward, done, info
+    #     return obs, reward, done, info
     
     # def _step_finalize(self, env_indices):
     #     super()._step_finalize(env_indices)
@@ -151,6 +151,25 @@ class A1EffVel(A1Walking):
     #     self.action_ratio = action_ratio
     #     return super().step_all(env_mask, real_action)
 
+class A1PosVel(A1Walking):
+    def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(105, 0, 4), camera_target=(95, 0, 0), action_scale=1.):
+        super().__init__(num_envs, horizon, headless, domain_randomization, camera_position, camera_target)
+        self.action_scale = action_scale
+        self._last_target_pos = torch.zeros((num_envs, self.NUM_JOINTS), device=self._device)
+        action_limit = self._task.get_joint_max_velocities() / self.action_scale
+        self._mdp_info.action_space = Box(-action_limit, action_limit, data_type=action_limit.dtype)
+
+    def setup(self, env_indices, obs):
+        super().setup(env_indices, obs)
+        self._last_target_pos[env_indices] = self._setup_joint_vel
+
+    def _compute_torque(self, action, joint_vels, joint_pos):
+        target_pos = self._last_target_pos + self.action_scale * action * self.dt
+        self._torques = 20.0 * (target_pos - joint_pos) - 0.5 * joint_vels
+        self._torques = torch.clip(self._torques, -self._effort_limit, self._effort_limit)
+        self._last_target_pos = target_pos.clone().detach()
+        
+        return self._torques
 
 class A1Atacom():
     def __init__(self, cfg):
@@ -214,3 +233,12 @@ class A1PIEnv(A1Atacom, A1EffVel):
         A1EffVel.__init__(self, cfg['num_envs'], cfg['horizon'], cfg['headless'], action_scale=cfg['control']['action_scale'], Kp=cfg['control']['Kp'], Kd=cfg['control']['Kd'], Ki=cfg['control']['Ki'])
         A1Atacom.__init__(self, cfg)
 
+class A1Pos(A1Atacom, A1Walking):
+    def __init__(self, cfg):
+        A1Walking.__init__(self, cfg['num_envs'], cfg['horizon'], cfg['headless'])
+        A1Atacom.__init__(self, cfg)
+
+class A1Vel(A1Atacom, A1PosVel):
+    def __init__(self, cfg):
+        A1PosVel.__init__(self, cfg['num_envs'], cfg['horizon'], cfg['headless'], action_scale=cfg['control']['action_scale'])
+        A1Atacom.__init__(self, cfg)
