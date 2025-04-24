@@ -52,7 +52,7 @@ def foot_pos_hist(joint_pos, env_info, epoch, plot_path):
 
 def foot_rot_hist(joint_pos, env_info, epoch, plot_path):
     feet_names = ['FL', 'FR', 'RL', 'RR']
-    feet_base_rot = [[0., -1.2, 0.], [0., -0.5, 0.], [0., -1.2, 0.], [0., -0.5, 0.]]
+    feet_base_rot = [[0., -0.3, 0.], [0., -0.3, 0.], [0., -0.3, 0.], [0., -0.3, 0.]]
 
     feet = [LinkPos(env_info['urdf_path'], side + '_foot', side + '_thigh', env_info['default_joint_pos'],  env_info['action']['idx'][side]) for side in feet_names]
     fig, axs = plt.subplots(2, 2, figsize=(15, 15))
@@ -60,17 +60,12 @@ def foot_rot_hist(joint_pos, env_info, epoch, plot_path):
     for i in range(2):
         for j in range(2):
             foot = feet[i * 2 + j]
-            # foot.set_base_rot(SO3.Exp(torch.tensor([-0.0299, -0.8168, -0.0120]).cuda()))
             foot.set_base_rot(SO3.Exp(torch.tensor(feet_base_rot[i * 2 + j]).cuda()))
             foot_rot = foot.get_rot(joint_pos.cuda() + env_info['default_joint_pos']).cpu()
             rots.append(foot_rot)
             foot_angle = torch.norm(SO3.Log(foot_rot), dim=1)
             axs[i, j].hist(foot_angle, bins=100)
             axs[i, j].set_title(f"{feet_names[i * 2 + j]}")
-            print(f"Foot {feet_names[i * 2 + j]} mean rotation at epoch {epoch}:\n {SO3.Log(foot_rot).mean(dim=0)}")
-        print(f"{['Front', 'Back'][i]} foot mean rotation at epoch {epoch}:\n {SO3.Log(torch.cat(rots[i*2:(i + 1) * 2], dim=0)).mean(dim=0)}")
-    
-    print(f"Mean rotation of all feet at epoch {epoch}:\n {SO3.Log(torch.cat(rots, dim=0)).mean(dim=0)}")
 
     os.makedirs(f"{plot_path}/distribution/epoch_{epoch}", exist_ok=True)
     plt.savefig(f"{plot_path}/distribution/epoch_{epoch}/foot_rot_distribution_{epoch}.png")
