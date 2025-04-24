@@ -21,6 +21,7 @@ learn:
   quiet: ${quiet}
 
 control:
+  type: 'Vel'
   action_scale: 3.5
   # Kp: [1.2, 2.45, 1.2] Kd: [0.01, 0.005, 0.0] Ki: [0.2, 0.2, 0.8]
   Kp: [1.]
@@ -101,7 +102,7 @@ train:
   seed: ${seed}
   checkpoint: ${checkpoint}
   normalize_state: False
-  atacom_policy: True
+  atacom_policy: False
 
   policy:
     std_0: 1.
