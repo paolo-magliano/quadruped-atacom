@@ -34,26 +34,15 @@ def main(cfg: DictConfig) -> None:
     cfg_dict = omegaconf_to_dict(cfg)
 
     TorchUtils.set_default_device('cuda')
-    torch.manual_seed(cfg_dict['seed'])
-    numpy.random.seed(cfg_dict['seed'])
 
-    logger = Logger(log_name=cfg_dict['task_name'], results_dir=cfg_dict['results_dir'], seed=cfg_dict['seed'], use_timestamp=True)
-    wandb_run = wandb_init(cfg_dict)
+    base_path = []
 
-    try:
-        experiment(cfg_dict, logger)
-    finally:
-        wandb_run.finish()
-        clean_dir(logger._results_dir)
-
-def experiment(cfg_dict, logger):
     if cfg_dict['control']['type'] == 'Pos':
         env, env_info = A1Pos.build_env(cfg_dict)
     elif cfg_dict['control']['type'] == 'Vel':
         env, env_info = A1Vel.build_env(cfg_dict)
     else:
         env, env_info = A1PIEnv.build_env(cfg_dict)
-    env.seed(cfg_dict['seed'])
 
     cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])
     cfg_dict['atacom']['lambda_c'] = 2. / env.dt
@@ -62,29 +51,40 @@ def experiment(cfg_dict, logger):
 
     atacom_rl_agent = build_atacom_agent(rl_agent, env_info, cfg_dict['atacom'], cfg_dict['constraints'])
 
-    callbacks_fit = []
-    if not cfg_dict['complete_eval']:
-        log_callback = LogDataset(atacom_rl_agent, cfg_dict['atacom']['enable'], env.info.gamma, logger, cfg_dict['eval']['n_episodes'])
-        callbacks_fit.append(log_callback)
+    for seed in cfg_dict['seed']:
+        torch.manual_seed(seed)
+        numpy.random.seed(seed)
+
+        logger = Logger(log_name=cfg_dict['task_name'], results_dir=cfg_dict['results_dir'], seed=seed, use_timestamp=True)
+        wandb_run = wandb_init(cfg_dict)
+        base_path.append(logger._results_dir)
+
+        try:
+            experiment(cfg_dict, env, env_info, atacom_rl_agent, rl_agent, logger, seed)
+        finally:
+            wandb_run.finish()
+            clean_dir(logger._results_dir)
+
+    plot_experiment_metric(base_path, cfg_dict['n_epochs'])
+
+def experiment(cfg_dict, env, env_info, atacom_rl_agent, rl_agent, logger, seed):
+    env.seed(seed)
 
     record_params = {
         'path':logger._results_dir,
         'tag': 'records'
     }
 
-    core = VectorCore(atacom_rl_agent, env, callbacks_fit=callbacks_fit, record_dictionary=record_params)
-
-    # compute_metrics(core, eval_params, env_info , epoch, deep_constr_log=False, plot_path='plot', dataset_path='dataset'):
+    core = VectorCore(atacom_rl_agent, env, record_dictionary=record_params)
     if cfg_dict['complete_eval']:
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, 0, deep_constr_log=cfg_dict['deep_constr_log'], plot_path=f'{logger._results_dir}/plot', dataset_path=f'{logger._results_dir}/dataset')
+        
+        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, 0, deep_constr_log=cfg_dict['deep_constr_log'], base_path=logger._results_dir)
         best_R = -float('inf')
 
         # Write logging
         log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, -1)
         wandb.log(log_dict, step=0)
 
-    profile = cProfile.Profile()
-    profile.enable()
     if not cfg_dict['test']:
         for epoch in tqdm(range(cfg_dict['n_epochs']), disable=False, leave=False):           
             core.learn(**cfg_dict['learn'])
@@ -94,22 +94,17 @@ def experiment(cfg_dict, logger):
                 cfg_dict['eval']['record'] = True
 
             if cfg_dict['complete_eval']:
-                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, epoch + 1, deep_constr_log=cfg_dict['deep_constr_log'], plot_path=f'{logger._results_dir}/plot', dataset_path=f'{logger._results_dir}/dataset')
+                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, epoch + 1, deep_constr_log=cfg_dict['deep_constr_log'], base_path=logger._results_dir)
 
                 # Write logging
                 log_dict = log_info(logger, rl_agent, J, R, E, V, task_info, epoch)
                 wandb.log(log_dict, step=epoch + 1)
                         
                 logger.log_best_agent(rl_agent, R)
-
-        plot_experiment_metric(f'{logger._results_dir}/dataset', f'{logger._results_dir}/plot', cfg_dict['n_epochs'])
+    env.stop(soft=False)
 
     if cfg_dict['record'] and os.path.exists(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4"):
         wandb.log({"Policy": wandb.Video(f"{logger._results_dir}/records/recording-{cfg_dict['n_epochs']}.mp4", fps=(1 / env.dt))})
-    
-    profile.disable()
-    stats = pstats.Stats(profile).sort_stats('cumtime')
-    stats.print_stats(50)
 
 if __name__ == '__main__':
     main()

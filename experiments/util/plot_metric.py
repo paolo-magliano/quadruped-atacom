@@ -77,6 +77,24 @@ def save_dataset(dataset, dataset_path, epoch):
         if 'constraint' in key:
             torch.save(dataset.info[key], f"{dataset_path}/epoch_{epoch}/{key}_{epoch}.pt")
 
+def save_metric(J, R, E, V, task_info, metric_path, epoch):
+    os.makedirs(f"{metric_path}/epoch_{epoch}", exist_ok=True)
+    torch.save(torch.tensor(J).cpu(), f"{metric_path}/epoch_{epoch}/J_{epoch}.pt")
+    torch.save(torch.tensor(R).cpu(), f"{metric_path}/epoch_{epoch}/R_{epoch}.pt")
+    torch.save(torch.tensor(E).cpu(), f"{metric_path}/epoch_{epoch}/E_{epoch}.pt")
+    torch.save(torch.tensor(V).cpu(), f"{metric_path}/epoch_{epoch}/V_{epoch}.pt")
+    for k_type, v_type in task_info.items():
+        if k_type != 'constraint':
+            if isinstance(v_type, dict):
+                for k_name, v_name in v_type.items():
+                    if isinstance(v_name, dict):
+                        for k_metric, v_metric in v_name.items():
+                            torch.save(torch.tensor(v_metric).cpu(), f"{metric_path}/epoch_{epoch}/{k_type}_{k_name}_{k_metric}_{epoch}.pt")
+                    else:
+                        torch.save(torch.tensor(v_name).cpu(), f"{metric_path}/epoch_{epoch}/{k_type}_{k_name}_{epoch}.pt")
+            else:
+                torch.save(torch.tensor(v_type).cpu(), f"{metric_path}/epoch_{epoch}/{k_type}_{epoch}.pt")
+
 def load_dataset(dataset_path, num_epoch):
     dataset = []
     for epoch in range(num_epoch):
@@ -90,8 +108,21 @@ def load_dataset(dataset_path, num_epoch):
         
     return dataset
 
-def plot_constraint(dataset, num_epoch, plot_path, deep, epsilon=0):
-    os.makedirs(f'{plot_path}/constraint', exist_ok=True)
+def load_metric(metric_path, num_epoch):
+    metric_dict = {}
+    for epoch in range(num_epoch):
+        for file_name in os.listdir(f"{metric_path}/epoch_{epoch}"):
+            key = '_'.join(file_name.split('_')[:-1])
+            data = torch.load(f"{metric_path}/epoch_{epoch}/{file_name}")
+            
+            if key not in metric_dict:
+                metric_dict[key] = data.unsqueeze(0)
+            else:
+                metric_dict[key] = torch.cat([metric_dict[key], data.unsqueeze(0)], dim=0)
+        
+    return metric_dict
+
+def constraints_from_dataset(dataset, num_epoch, deep, epsilon=0):
     constraints = {}
     for epoch in range(num_epoch):
         for key in dataset[epoch].keys():
@@ -111,18 +142,24 @@ def plot_constraint(dataset, num_epoch, plot_path, deep, epsilon=0):
                         constraints[constr_key][k] = torch.tensor(info_dict[k]).unsqueeze(0)
                     else:
                         constraints[constr_key][k] = torch.cat([constraints[constr_key][k], torch.tensor(info_dict[k]).unsqueeze(0)], dim=0)
+    return constraints
 
-    for key in constraints.keys():  
-        constraint = constraints[key]
-        for k in constraint.keys():
-            constraint_plot(constraint[k], constraint[k].shape[1], f'{plot_path}/constraint', key, f'{k}{"_deep" if deep else ""}{"_e" + str(epsilon) if epsilon > 0 else ""}')             
+def plot_constraint(constraint_dicts, plot_path, deep=True, epsilon=0):
+    
+    for key in constraint_dicts[0].keys():  
+        for k in constraint_dicts[0][key].keys():
+            values = torch.stack([constraint_dict[key][k] for constraint_dict in constraint_dicts], dim=0)
+            data_plot(values, values.shape[-1], f'{plot_path}/constraint', key, f'{k}{"_deep" if deep else ""}{"_e" + str(epsilon) if epsilon > 0 else ""}')             
             
-def constraint_plot(constraint, num_constraint, plot_path, dir_path, plot_name, fig=None, axs=None):
+def data_plot(data, num_data, plot_path, dir_path, plot_name, fig=None, axs=None):
     if fig is None or axs is None:
-        fig, axs = subplot(num_constraint)
+        fig, axs = subplot(num_data)
      
-    for i in range(num_constraint):
-        axs[i].plot(constraint[:, i])
+    for i in range(num_data):
+        mean = data[:, :, i].mean(dim=0) if num_data > 1 else data.mean(dim=0)
+        std = data[:, :, i].std(dim=0) if num_data > 1 else data.std(dim=0)
+        axs[i].plot(mean)
+        axs[i].fill_between(range(mean.shape[0]), mean - std, mean + std, alpha=0.3)
         axs[i].set_title(f"Constraint {i}")
         axs[i].set_xlabel('Epoch')
         axs[i].set_ylabel('Violation')
@@ -135,11 +172,17 @@ def constraint_plot(constraint, num_constraint, plot_path, dir_path, plot_name, 
     plt.savefig(f"{plot_path}/{dir_path}/{plot_name}.png")
     plt.close(fig)
 
-def plot_experiment_metric(dataset_path, plot_path, num_epoch):
+def plot_experiment_metric(base_paths, num_epoch, plot_path='plot', dataset_path='dataset', metric_path='metric'):
     epsilon = 0
-    dataset = load_dataset(dataset_path, num_epoch)
-    plot_constraint(dataset, num_epoch, plot_path, deep=True, epsilon=epsilon)
-    plot_constraint(dataset, num_epoch, plot_path, deep=False, epsilon=epsilon)
+
+    constraint_dicts_deep = [constraints_from_dataset(load_dataset(f'{base}/{dataset_path}', num_epoch), num_epoch, True, epsilon) for base in base_paths]
+    constraint_dicts = [constraints_from_dataset(load_dataset(f'{base}/{dataset_path}', num_epoch), num_epoch, False, epsilon) for base in base_paths]
+    metric_dicts = [load_metric(f'{base}/{metric_path}', num_epoch) for base in base_paths]
+    plot_constraint(constraint_dicts_deep, f'{base_paths[0]}/{plot_path}', deep=True, epsilon=epsilon)
+    plot_constraint(constraint_dicts, f'{base_paths[0]}/{plot_path}', deep=False, epsilon=epsilon)
+    for k in metric_dicts[0].keys():
+        values = torch.stack([metric_dict[k] for metric_dict in metric_dicts], dim=0)
+        data_plot(values, 1, f'{base_paths[0]}/{plot_path}', 'metric', k)
 
 def subplot(num):
     n_col = 3 if num > 3 else num

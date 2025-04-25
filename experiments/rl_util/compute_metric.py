@@ -2,7 +2,7 @@ import torch
 import os
 
 from atacom.envs.costr_log_utils import get_dataset_info
-from experiments.util.plot_metric import plot_metric, save_dataset
+from experiments.util.plot_metric import plot_metric, save_dataset, save_metric
 
 def get_init_states(dataset):
     pick = True
@@ -46,17 +46,19 @@ def compute_V(agent, dataset):
     return torch.tensor(Q).mean(axis=0)
 
 
-def compute_metrics(core, eval_params, env_info , epoch, deep_constr_log=False, plot_path='plot', dataset_path='dataset'):
+def compute_metrics(core, eval_params, env_info , epoch, deep_constr_log=False, base_path='.', plot_path='plot', dataset_path='dataset', metric_path='metric'):
     if hasattr(core.env, "curriculum_training"):
         core.env.curriculum_training = False
     
     dataset = core.evaluate(**eval_params)
 
-    save_dataset(dataset, dataset_path, epoch)
+    save_dataset(dataset, f'{base_path}/{dataset_path}', epoch)
 
-    plot_metric(dataset.state.cpu(), env_info, epoch, plot_path)
+    plot_metric(dataset.state.cpu(), env_info, epoch, f'{base_path}/{plot_path}')
 
     J, R, E, V, task_info = get_metrics(dataset, core.agent, core.env.info.gamma, deep_constr_log)
+
+    save_metric(J, R, E, V, task_info, f'{base_path}/{metric_path}', epoch)
 
     if hasattr(core.env, 'clear_task_info'):
         core.env.clear_task_info()
