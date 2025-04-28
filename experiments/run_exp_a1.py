@@ -1,11 +1,13 @@
+import sys
+import os
+sys.path.append('/home/magliano/Project/SafeLocomotion')
+os.environ["WANDB_DISABLE_SENTRY"] = "true"
+
 from tqdm import tqdm
 import torch
 import numpy
 import wandb
 from datetime import datetime
-import os
-import sys
-sys.path.append('/home/magliano/Project/SafeLocomotion')
 
 from mushroom_rl.core import VectorCore, Logger
 from mushroom_rl.utils.torch import TorchUtils
@@ -34,7 +36,10 @@ def main(cfg: DictConfig) -> None:
     cfg_dict = omegaconf_to_dict(cfg)
 
     TorchUtils.set_default_device('cuda')
-
+    exp_dir = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    cfg_dict['results_dir'] = os.path.join(cfg_dict['results_dir'], exp_dir)
+    wandb_run = wandb_init(cfg_dict)
+    
     base_path = []
 
     if cfg_dict['control']['type'] == 'Pos':
@@ -50,22 +55,21 @@ def main(cfg: DictConfig) -> None:
     rl_agent = build_rl_agent(env.info, cfg_dict['train'])
 
     atacom_rl_agent = build_atacom_agent(rl_agent, env_info, cfg_dict['atacom'], cfg_dict['constraints'])
-
+    sys.path = [p for p in sys.path if "isaacsim" not in p and "extscache" not in p]
     for seed in cfg_dict['seed']:
         torch.manual_seed(seed)
         numpy.random.seed(seed)
 
         logger = Logger(log_name=cfg_dict['task_name'], results_dir=cfg_dict['results_dir'], seed=seed, use_timestamp=True)
-        wandb_run = wandb_init(cfg_dict)
         base_path.append(logger._results_dir)
 
         try:
             experiment(cfg_dict, env, env_info, atacom_rl_agent, rl_agent, logger, seed)
         finally:
-            wandb_run.finish()
             clean_dir(logger._results_dir)
 
     plot_experiment_metric(base_path, cfg_dict['n_epochs'])
+    wandb_run.finish()
 
 def experiment(cfg_dict, env, env_info, atacom_rl_agent, rl_agent, logger, seed):
     env.seed(seed)

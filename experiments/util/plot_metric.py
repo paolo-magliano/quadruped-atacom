@@ -157,9 +157,12 @@ def data_plot(data, num_data, plot_path, dir_path, plot_name, fig=None, axs=None
      
     for i in range(num_data):
         mean = data[:, :, i].mean(dim=0) if num_data > 1 else data.mean(dim=0)
-        std = data[:, :, i].std(dim=0) if num_data > 1 else data.std(dim=0)
         axs[i].plot(mean)
-        axs[i].fill_between(range(mean.shape[0]), mean - std, mean + std, alpha=0.3)
+        
+        if data.shape[0] > 1:
+            std = data[:, :, i].std(dim=0) if num_data > 1 else data.std(dim=0)
+            axs[i].fill_between(range(mean.shape[0]), (mean - std).squeeze(), (mean + std).squeeze(), alpha=0.3)
+
         axs[i].set_title(f"Constraint {i}")
         axs[i].set_xlabel('Epoch')
         axs[i].set_ylabel('Violation')
