@@ -11,7 +11,7 @@ from .utils import smooth_basis
 class ATACOMController:
     def __init__(self, constraints: ConstraintList, system: ControlAffineSystem, eq_constraints=None,
                  slack_beta=3., slack_dynamics_type="exp", drift_compensation_type='vanilla', drift_clipping=True,
-                 slack_tol=1e-6, lambda_c=1, slack_vel_limit=1., second_order=False):
+                 slack_tol=1e-6, lambda_c=1, lambda_c_i=0.1, slack_vel_limit=1., second_order=False):
         self.constraints = constraints
         self.eq_constraints = eq_constraints
         self.system_dynamics = system
@@ -24,6 +24,8 @@ class ATACOMController:
             self.dim_k_eq = self.eq_constraints.dim_k
         self.second_order = second_order
         self.lambda_c = lambda_c
+        self.lambda_c_i = lambda_c_i
+        self.integral_residual = None
         self.drift_compensation_type = drift_compensation_type
         self.drift_clipping = drift_clipping
         self.slack = Slack(self.constraints.dim_k, beta=slack_beta, dynamics_type=slack_dynamics_type, tol=slack_tol,
@@ -71,6 +73,10 @@ class ATACOMController:
             #TODO Check if it works with parallel environment (len(q.shape) > 1)
             l = self.eq_constraints.k(q, z)
             residual = torch.cat([residual, l], axis=-1)
+        residual_bool = residual > 0
+        if self.integral_residual is None:
+            self.integral_residual = torch.zeros_like(residual)
+        self.integral_residual += residual
 
         # Get Drift
         psi = self.psi(q, q_dot, z, z_dot)
@@ -78,7 +84,7 @@ class ATACOMController:
         J_u = self.J_u(J_G, mu)
 
         if self.drift_compensation_type == 'vanilla':
-            u_drift_compensation = torch.linalg.lstsq(J_u, -psi - self.lambda_c * residual).solution
+            u_drift_compensation = torch.linalg.lstsq(J_u, -psi - self.lambda_c * residual - self.lambda_c_i * self.integral_residual * residual_bool).solution
         elif self.drift_compensation_type == 'enforced':
             #TODO Check if it works with parallel environment (len(q.shape) > 1)
             u_drift_compensation = torch.linalg.lstsq(J_G, -psi).solution
