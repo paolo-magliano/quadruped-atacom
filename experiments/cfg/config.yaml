@@ -63,6 +63,8 @@ atacom:
   slack_dynamics_type: 'exp'
   slack_beta: 50
   slack_tol: 1e-6
+  lambda_c: 2.
+  lambda_c_i: 0.1
   randomize_dynamics: False
   double_integration: False
   drift_compensation_type: 'vanilla'

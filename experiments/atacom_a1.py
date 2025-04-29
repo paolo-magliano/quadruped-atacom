@@ -370,7 +370,8 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
                                          slack_dynamics_type=atacom_params['slack_dynamics_type'],
                                          drift_compensation_type=atacom_params['drift_compensation_type'],
                                          drift_clipping=atacom_params['drift_clipping'],
-                                         lambda_c=atacom_params['lambda_c'])
+                                         lambda_c=atacom_params['lambda_c'],
+                                         lambda_c_i=atacom_params['lambda_c_i'])
 
     return ATACOMWrapper(env_info=env_info,
                          atacom_controller=atacom_controller,

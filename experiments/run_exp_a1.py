@@ -1,13 +1,12 @@
-import sys
-import os
-sys.path.append('/home/magliano/Project/SafeLocomotion')
-os.environ["WANDB_DISABLE_SENTRY"] = "true"
-
 from tqdm import tqdm
 import torch
 import numpy
 import wandb
 from datetime import datetime
+import sys
+import os
+
+sys.path.append('/home/magliano/Project/SafeLocomotion')
 
 from mushroom_rl.core import VectorCore, Logger
 from mushroom_rl.utils.torch import TorchUtils
@@ -50,7 +49,8 @@ def main(cfg: DictConfig) -> None:
         env, env_info = A1PIEnv.build_env(cfg_dict)
 
     cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])
-    cfg_dict['atacom']['lambda_c'] = 2. / env.dt
+    cfg_dict['atacom']['lambda_c'] = cfg_dict['atacom']['lambda_c'] / env.dt
+    cfg_dict['atacom']['lambda_c_i'] = cfg_dict['atacom']['lambda_c_i'] / env.dt
     
     rl_agent = build_rl_agent(env.info, cfg_dict['train'])
 
