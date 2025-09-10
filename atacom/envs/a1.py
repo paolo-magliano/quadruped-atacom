@@ -161,7 +161,7 @@ class A1PosVel(A1Walking):
 
     def setup(self, env_indices, obs):
         super().setup(env_indices, obs)
-        self._last_target_pos[env_indices] = self._setup_joint_vel
+        self._last_target_pos[env_indices] = self._setup_joint_pos
 
     def _compute_torque(self, action, joint_vels, joint_pos):
         target_pos = self._last_target_pos + self.action_scale * action * self.dt
