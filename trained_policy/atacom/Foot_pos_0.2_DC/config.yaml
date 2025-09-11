@@ -1,0 +1,116 @@
+task_name: A1
+num_envs: 4096
+seed:
+- 5
+n_epochs: 15
+horizon: 1000
+quiet: false
+render: false
+record: false
+learn:
+  n_steps: 4915200
+  n_steps_per_fit: 98304
+  quiet: ${quiet}
+control:
+  type: PI
+  action_scale: 2.5
+  Kp:
+  - 1.0
+  Kd:
+  - 0.0
+  Ki:
+  - 0.1
+test: false
+checkpoint: ''
+complete_eval: true
+deep_constr_log: false
+eval:
+  n_episodes: 256
+  quiet: ${quiet}
+  render: ${render}
+  record: ${record}
+debug: false
+headless: true
+atacom:
+  enable: true
+  slack_dynamics_type: exp
+  slack_beta: 10
+  slack_tol: 1.0e-06
+  lambda_c: 2.0
+  lambda_c_i: 0.0
+  integral_window: 100
+  randomize_dynamics: false
+  double_integration: false
+  drift_compensation_type: vanilla
+  drift_clipping: true
+constraints:
+  joint_percentage: false
+  joint_limit: null
+  hfe_limit: null
+  feet_pos:
+  - FL
+  - FR
+  - RL
+  - RR
+  foot_pos_alpha: 0.2
+  foot_pos_beta: 0.2
+  foot_pos_min_z: null
+  foot_pos_max_z: null
+  foot_rot_base: null
+  foot_rot_max: 1.57
+  foot_rot_min: null
+  check_J: false
+urdf_filepath: null
+results_dir: ./logs
+experiment_subdir: Foot_pos_0.2_DC
+plot:
+  compare_paths:
+  - /home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Velocity_baseline
+  - /home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Position_baseline
+wandb:
+  activate: true
+  key: 64d1b8769f524f18c3c9c53265dbde91917f7cac
+  group: ''
+  name: ${task_name}_${seed}
+  entity: paolo_magliano
+  project: ATACOM_${task_name}
+train:
+  algorithm: PPO
+  seed: ${seed}
+  checkpoint: ${checkpoint}
+  normalize_state: false
+  atacom_policy: false
+  policy:
+    std_0: 1.0
+    mean_n_features:
+    - 512
+    - 256
+    - 128
+    std_n_features:
+    - 128
+    - 64
+    - 32
+    activation: relu
+  critic:
+    n_features:
+    - 512
+    - 256
+    - 128
+    activation: relu
+    batch_size: 6144
+    optimizer:
+      params:
+        lr: 0.001
+  actor_opt:
+    params:
+      lr: 0.001
+  params:
+    n_epochs_policy: 5
+    batch_size: 6144
+    eps_ppo: 0.2
+    lam: 0.95
+    ent_coeff: 0.001
+    ent_decay: 0.0
+    schedule: adaptive
+    desired_kl: 0.01
+    clip_grad_norm: 1.0

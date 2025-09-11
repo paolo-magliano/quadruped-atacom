@@ -1,0 +1,149 @@
+
+# Task name - used to pick the class to load
+task_name: A1
+
+# if set to positive integer, overrides the default number of environments
+num_envs: 4096
+
+# seed - set to -1 to choose random seed
+seed: [1]
+
+n_epochs: 15
+horizon: 1000
+
+quiet: False
+render: False
+record: False
+
+learn:
+  n_steps: 4915200 # 4096 * 24 * 50
+  n_steps_per_fit: 98304 # 4096 * 24
+  quiet: ${quiet}
+
+control:
+  type: 'PI'
+  action_scale: 2.5
+  # Kp: [1.2, 2.45, 1.2] Kd: [0.01, 0.005, 0.0] Ki: [0.2, 0.2, 0.8]
+  Kp: [1.]
+  Kd: [0.]
+  Ki: [0.1]
+
+  # type: 'PD' # PD or PI
+  # action_scale: 3.
+  # Kp: 0.
+  # Kd: 10.
+  # Ki: 0.
+
+# MushroomRL arguments
+# test - if set, run policy in inference mode (requires setting checkpoint to load)
+test: False
+# used to set checkpoint path
+checkpoint: ''
+# evaluate checkpoint
+complete_eval: True
+deep_constr_log: False
+
+eval:
+  n_episodes: 256
+  # n_steps: 409600
+  quiet: ${quiet}
+  render: ${render}
+  record: ${record}
+
+# Set to enable debugging
+debug: False 
+
+# disables rendering
+headless: True
+# enables native livestream
+
+# ATACOM Parameters
+atacom:
+  enable: True 
+  slack_dynamics_type: 'exp'
+  slack_beta: 10
+  slack_tol: 1e-6
+  lambda_c: 2.
+  lambda_c_i: 10.
+  integral_window: 100
+  randomize_dynamics: False
+  double_integration: False
+  drift_compensation_type: 'vanilla'
+  drift_clipping: True
+
+constraints:
+  # Joint pos contraint
+  joint_percentage: False
+  joint_limit: # [1., 1., 1.]
+  hfe_limit: # [0.5]
+  # Foot pos contraint
+  feet_pos: ['FL', 'FR', 'RL', 'RR']
+  foot_pos_alpha: # 0.5
+  foot_pos_beta: # 0.5
+  foot_pos_min_z: # -0.4
+  foot_pos_max_z: # -0.1
+  # Foot rot contraint
+  foot_rot_base: 
+  foot_rot_max: 1.57
+  foot_rot_min: # 0.8
+  # Activate the numerical control of the jacobian of all contraints. It slow down the execution
+  check_J: False
+
+urdf_filepath: 
+
+results_dir: './logs'
+experiment_subdir: ''
+plot:
+  compare_paths: ['/home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Velocity_baseline', '/home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Position_baseline']
+wandb:
+  activate: True
+  key: '64d1b8769f524f18c3c9c53265dbde91917f7cac'  #YOUR_WANDB_API
+  group: ''
+  name: '${task_name}_${seed}'
+  entity: 'paolo_magliano'
+  project: 'ATACOM_${task_name}'
+
+train:
+  algorithm: PPO
+  seed: ${seed}
+  checkpoint: ${checkpoint}
+  normalize_state: False
+  atacom_policy: False
+
+  policy:
+    std_0: 1.
+    mean_n_features: [512, 256, 128]
+    std_n_features: [128, 64, 32]
+    activation: relu
+
+  critic:
+    n_features: [512, 256, 128]
+    activation: relu
+    batch_size: 6144 # 4096 * 24 / 16
+    optimizer:
+      params:
+        lr: 1e-3
+
+  actor_opt:
+    params:
+      lr: 1e-3
+
+  params:
+    n_epochs_policy: 5
+    batch_size: 6144 # 4096 * 24 / 16
+    eps_ppo: 0.2
+    lam: 0.95
+    ent_coeff: 1e-3 # 0.01 for Nikita, 5e-4 for PD and 1e-4 for PI
+    ent_decay: 0.
+    schedule: 'adaptive' # could be adaptive, fixed
+    desired_kl: 0.01
+    clip_grad_norm: 1. 
+
+
+# set the directory where the output files get saved
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+
+
