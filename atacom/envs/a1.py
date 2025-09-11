@@ -154,9 +154,10 @@ class A1EffVel(A1Walking):
 class A1PosVel(A1Walking):
     def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(105, 0, 4), camera_target=(95, 0, 0), action_scale=1.):
         super().__init__(num_envs, horizon, headless, domain_randomization, camera_position, camera_target)
-        self.action_scale = action_scale
+        self._action_scale = action_scale
+        self._last_joint_pos = torch.zeros((num_envs, self.NUM_JOINTS), device=self._device)
         self._last_target_pos = torch.zeros((num_envs, self.NUM_JOINTS), device=self._device)
-        action_limit = self._task.get_joint_max_velocities() / self.action_scale
+        action_limit = self._task.get_joint_max_velocities() / self._action_scale
         self._mdp_info.action_space = Box(-action_limit, action_limit, data_type=action_limit.dtype)
 
     def setup(self, env_indices, obs):
@@ -164,12 +165,66 @@ class A1PosVel(A1Walking):
         self._last_target_pos[env_indices] = self._setup_joint_pos
 
     def _compute_torque(self, action, joint_vels, joint_pos):
-        target_pos = self._last_target_pos + self.action_scale * action * self.dt
+        target_pos = self._last_target_pos + self._action_scale * action * self.dt
         self._torques = 20.0 * (target_pos - joint_pos) - 0.5 * joint_vels
         self._torques = torch.clip(self._torques, -self._effort_limit, self._effort_limit)
         self._last_target_pos = target_pos.clone().detach()
         
         return self._torques
+
+    def reward(self, obs, action, next_obs, absorbing):
+        base_lin_vel = self.observation_helper.get_from_obs(next_obs, "base_lin_vel")
+        base_lin_vel_xy = base_lin_vel[:, 0:2]
+        base_lin_vel_z = base_lin_vel[:, 2]
+        base_ang_vel = self.observation_helper.get_from_obs(next_obs, "base_ang_vel")
+        base_ang_vel_xy = base_ang_vel[:, 0:2]
+        base_ang_vel_z = base_ang_vel[:, 2]
+
+        joint_vel = self.observation_helper.get_from_obs(next_obs, "joint_vel")
+        joint_pos = self.observation_helper.get_from_obs(next_obs, "joint_pos")
+
+        #---------------------------------------------------------------------------
+
+        target_pos = joint_pos + self._action_scale * action * self.dt
+        # self.controller_data.add_data(action * self._action_scale, dof_vel)
+        # self.plotter.add_data(action[0] * self._action_scale, dof_vel[0])
+
+        #---------------------------------------------------------------------------
+
+        r_tracking_lin_vel = self._reward_tracking_lin_vel(base_lin_vel_xy) * 1.0 * self.dt
+        r_tracking_ang_vel = self._reward_tracking_ang_vel(base_ang_vel_z) * 0.5 * self.dt
+        r_lin_vel_z = self._reward_lin_vel_z(base_lin_vel_z) * -2.0 * self.dt
+        r_ang_vel_xy = self._reward_ang_vel_xy(base_ang_vel_xy) * -0.05 * self.dt
+        r_torques = self._reward_torques(self._torques) * -0.0002 * self.dt
+        r_joint_acc = self._reward_joint_acc(joint_vel) * -2.5e-7 * self.dt
+        r_feet_air_time = self._reward_feet_air_time() * 1.0 * self.dt
+        r_collision = self._reward_collision() * -1. * self.dt
+        r_action_rate = self._reward_action_rate(action) * -0.01 * self.dt
+        r_joint_pos_limits = self._reward_joint_pos_limits(joint_pos) * -10.0 * self.dt
+        r_dof_pos_rate = self._reward_dof_pos_rate(target_pos) * -0.01 * self.dt
+
+        self._extra_info_rewards = {
+            "tracking_lin_vel": r_tracking_lin_vel, "tracking_ang_vel": r_tracking_ang_vel,
+            "lin_vel_z": r_lin_vel_z, "ang_vel_xy": r_ang_vel_xy, 
+            "torques": r_torques, "joint_acc": r_joint_acc, 
+            "feet_air_time": r_feet_air_time, "collision": r_collision, 
+            "action_rate": r_action_rate, "joint_pos_limits": r_joint_pos_limits,
+            "dof_pos_rate": r_dof_pos_rate
+        }
+
+        reward = r_tracking_lin_vel + r_tracking_ang_vel + r_lin_vel_z + r_ang_vel_xy + r_torques + r_joint_acc + r_feet_air_time \
+                + r_collision + r_action_rate + r_joint_pos_limits + r_dof_pos_rate
+        
+        reward = torch.clamp(reward, min=0.)
+
+        self._last_actions = action.clone().detach()
+        self._last_joint_vel = joint_vel.clone().detach()
+        self._last_joint_pos = target_pos.clone().detach()
+        
+        return reward
+
+    def _reward_dof_pos_rate(self, dof_pos):
+        return torch.sum(torch.square(self._last_joint_pos - dof_pos), dim=1)
 
 class A1Atacom():
     def __init__(self, cfg):

@@ -29,11 +29,11 @@ def build_rl_agent(mdp_info, cfg_dict):
     else:
         if '.msh' in cfg_dict['checkpoint']:
             return Agent.load(cfg_dict['checkpoint'])
-        file_list = _get_file_by_postfix(cfg_dict['checkpoint'], f'{cfg_dict["seed"]}-best.msh')
+        file_list = _get_file_by_postfix(cfg_dict['checkpoint'], f'{cfg_dict["seed"][0]}-best.msh')
         if file_list:
             return Agent.load(file_list[0])
         else:
-            raise FileNotFoundError(f'No file cointaining {cfg_dict["seed"]}-best.msh found in {cfg_dict["checkpoint"]}')
+            raise FileNotFoundError(f'No file cointaining {cfg_dict["seed"][0]}-best.msh found in {cfg_dict["checkpoint"][0]}')
 
 def _build_agent_PPO(mdp_info, cfg_dict):
     cfg_dict['actor_opt']['class'] = optim.Adam

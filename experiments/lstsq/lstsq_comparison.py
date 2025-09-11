@@ -69,8 +69,8 @@ if __name__ == '__main__':
     # Load matrixes
     # A shape (batch, n, m) B shape (batch, n) -> x shape (batch, m)
     # Where batch is 4096, n is 24, m is 36
-    A = torch.load(os.path.join(path, "A.pt"))[:, 5:, 5:]
-    B = torch.load(os.path.join(path, "B.pt"))[:, 5:]
+    A = torch.load(os.path.join(path, "/home/stud_magliano/projects/SafeLocomotion/experiments/lstsq/A.pt"))
+    B = torch.load(os.path.join(path, "/home/stud_magliano/projects/SafeLocomotion/experiments/lstsq/B.pt"))
 
     # Run the compiled functions once to compile them
     compiled_lstsq(A, B)
@@ -79,13 +79,13 @@ if __name__ == '__main__':
     # Make a list with the functions to test, every function should have the same signature (A, B)
     functions_to_test = {
         'lstsq': lambda A, B: torch.linalg.lstsq(A, B).solution,
-        #'svd_lstsq': svd_lstsq,
-        'vmap_lstsq': vmap_lstsq,
+        'svd_lstsq': svd_lstsq,
+        # 'vmap_lstsq': vmap_lstsq,
         # 'vmap_pseudo': vmap_pseudo,
         # 'script_svd': script_svd,
-        # 'compiled_lstsq': lambda A, B: compiled_lstsq(A, B).solution,
-        # 'compiled_vmap_lstsq': compiled_vmap_lstsq,
-        'big_lstsq': big_matrix_lstsq,
+        'compiled_lstsq': lambda A, B: compiled_lstsq(A, B).solution,
+        'compiled_vmap_lstsq': compiled_vmap_lstsq,
+        #'big_lstsq': big_matrix_lstsq,
     }
     times = {f: [] for f in functions_to_test}
 

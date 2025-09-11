@@ -1,4 +1,6 @@
 import torch
+import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 14})
 
 from typing import Union, Optional, List, Set, Dict, Tuple
 from scipy import linalg, optimize
@@ -11,7 +13,7 @@ from .utils import smooth_basis
 class ATACOMController:
     def __init__(self, constraints: ConstraintList, system: ControlAffineSystem, eq_constraints=None,
                  slack_beta=3., slack_dynamics_type="exp", drift_compensation_type='vanilla', drift_clipping=True,
-                 slack_tol=1e-6, lambda_c=1, lambda_c_i=0.1, slack_vel_limit=1., second_order=False):
+                 slack_tol=1e-6, lambda_c=1, lambda_c_i=0.1, integral_window=100, slack_vel_limit=1., second_order=False):
         self.constraints = constraints
         self.eq_constraints = eq_constraints
         self.system_dynamics = system
@@ -25,11 +27,15 @@ class ATACOMController:
         self.second_order = second_order
         self.lambda_c = lambda_c
         self.lambda_c_i = lambda_c_i
+        self.integral_window = integral_window
         self.integral_residual = None
         self.drift_compensation_type = drift_compensation_type
         self.drift_clipping = drift_clipping
         self.slack = Slack(self.constraints.dim_k, beta=slack_beta, dynamics_type=slack_dynamics_type, tol=slack_tol,
                            vel_limit=slack_vel_limit)
+        
+        self.data_to_plot = None
+        self.counter = 0
 
     def get_q(self, s):
         """
@@ -54,6 +60,50 @@ class ATACOMController:
             return s[..., -self.dim_z:]
         else:
             return None
+        
+    def add_data(self, k, residual):
+        if self.data_to_plot is None:
+            self.data_to_plot = torch.zeros((5, 100)).to(k.device)
+            self.counter = 0
+        self.data_to_plot[0, self.counter] = k
+        self.data_to_plot[1, self.counter] = residual * self.lambda_c
+        self.data_to_plot[2, self.counter] = self.integral_residual[0, 0] * ( residual > 0) * self.lambda_c_i
+        self.data_to_plot[3, self.counter] = self.integral_residual[0, 0] * ( residual > 0) * self.lambda_c_i + residual * self.lambda_c
+        self.data_to_plot[4, self.counter] = self.integral_residual[0, 0] * self.lambda_c_i
+        self.counter += 1
+        ylabels = ['(a)', '(b)', '(c)', '(d)']
+        colors = ['red', 'orange', 'blue', 'green']
+
+        if self.counter >= 100:
+            fig, axs = plt.subplots(4, 1, figsize=(11, 6))
+
+            for i in range(self.data_to_plot.shape[0] - 1):
+                axs[i].minorticks_on()
+                axs[i].set_axisbelow(True)
+                axs[i].set_xmargin(0)
+                axs[i].grid(True, linestyle='--', linewidth=0.8, alpha=0.7)
+                axs[i].grid(which='minor', linestyle=':', linewidth=0.6, alpha=0.5)
+
+                axs[i].plot(self.data_to_plot[i].cpu(), color=colors[i], alpha=0.8)
+                if i == 0:
+                    axs[i].plot(torch.zeros_like(self.data_to_plot[i]).cpu(), color='black', alpha=0.5, linestyle='--')
+                if i == 2:
+                    axs[i].plot(self.data_to_plot[4].cpu(), color=colors[i], alpha=0.5, linestyle='--')
+                if i == (self.data_to_plot.shape[0] - 2):
+                    axs[i].set_xlabel('Steps')
+                    axs[i-1].set_ylim(axs[i].get_ylim())
+                    axs[i-2].set_ylim(axs[i].get_ylim())
+                else:
+                    axs[i].set_xlabel("")
+                    axs[i].set_xticklabels([]) 
+                axs[i].set_ylabel(ylabels[i], rotation=0, labelpad=50)
+            
+            fig.tight_layout()
+            fig.subplots_adjust(top=0.9)
+            fig.savefig('EMAEC.png')
+            plt.close(fig)
+
+            self.data_to_plot = None
 
     def compose_action(self, s, u, z_dot=0.):
         # Get State
@@ -76,8 +126,12 @@ class ATACOMController:
         residual_bool = residual > 0
         if self.integral_residual is None:
             self.integral_residual = torch.zeros_like(residual)
-        self.integral_residual += residual
+        if self.integral_window > 0:
+            self.integral_residual = (1 - 1 / self.integral_window) * self.integral_residual + 1 / self.integral_window * residual
+        else:
+            self.integral_residual += residual            
 
+        self.add_data(k[0, 0], residual[0, 0])
         # Get Drift
         psi = self.psi(q, q_dot, z, z_dot)
         J_G = self.J_G(q, z)

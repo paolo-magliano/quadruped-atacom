@@ -51,6 +51,22 @@ def _constr_metrics_dict(data, full=False, epsilon=0):
 
     return metrics
 
+def epsilon_distribution(dataset, eps_points):
+    info = {}
+    for key in dataset.keys():
+        if 'constraint' in key:
+            eps_points = eps_points.to(dataset[key].device)
+            eps_mean = torch.zeros_like(eps_points)[:-1]
+            if (dataset[key] > 0).any():
+                violation = (dataset[key] > 0).any(dim=-1).sum().item()
+                for i in range(len(eps_points) - 1):
+                    eps_violation = torch.logical_and((dataset[key] > eps_points[i]).any(dim=-1), (dataset[key] < eps_points[i+1]).all(dim=-1)).sum().item()
+                    eps_mean[i] = eps_violation / violation
+
+            info[key] = eps_mean
+
+    return info 
+
 def plot_joint_constr(joint_pos, joint_space_low, joint_space_high):
     n_point = 100
     middle = (joint_space_high + joint_space_low) / 2

@@ -6,7 +6,7 @@ task_name: A1
 num_envs: 4096
 
 # seed - set to -1 to choose random seed
-seed: [1, 2]
+seed: [1]
 
 n_epochs: 15
 horizon: 1000
@@ -22,7 +22,7 @@ learn:
 
 control:
   type: 'PI'
-  action_scale: 3.5
+  action_scale: 2.5
   # Kp: [1.2, 2.45, 1.2] Kd: [0.01, 0.005, 0.0] Ki: [0.2, 0.2, 0.8]
   Kp: [1.]
   Kd: [0.]
@@ -61,10 +61,11 @@ headless: True
 atacom:
   enable: True 
   slack_dynamics_type: 'exp'
-  slack_beta: 50
+  slack_beta: 10
   slack_tol: 1e-6
   lambda_c: 2.
-  lambda_c_i: 0.1
+  lambda_c_i: 0.5
+  integral_window: 100
   randomize_dynamics: False
   double_integration: False
   drift_compensation_type: 'vanilla'
@@ -91,6 +92,9 @@ constraints:
 urdf_filepath: 
 
 results_dir: './logs'
+experiment_subdir: ''
+plot:
+  compare_paths: ['/home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Velocity_baseline', '/home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Position_baseline']
 wandb:
   activate: True
   key: '64d1b8769f524f18c3c9c53265dbde91917f7cac'  #YOUR_WANDB_API
@@ -129,7 +133,7 @@ train:
     batch_size: 6144 # 4096 * 24 / 16
     eps_ppo: 0.2
     lam: 0.95
-    ent_coeff: 1e-3 # 0.01 for Nikita, 5e-4 for PD and 1e-4 for PI
+    ent_coeff: 1e-3
     ent_decay: 0.
     schedule: 'adaptive' # could be adaptive, fixed
     desired_kl: 0.01
