@@ -29,8 +29,8 @@ import pstats
 @hydra.main(config_name="config", config_path="./cfg", version_base="1.1")
 def main(cfg: DictConfig) -> None:
 
-    profile = cProfile.Profile()
-    profile.enable()
+    # profile = cProfile.Profile()
+    # profile.enable()
 
     cfg_dict = omegaconf_to_dict(cfg)
 
@@ -75,9 +75,9 @@ def main(cfg: DictConfig) -> None:
     
     wandb_run.finish()
 
-    profile.disable()
-    stats = pstats.Stats(profile).sort_stats('cumtime')
-    stats.print_stats(50)
+    # profile.disable()
+    # stats = pstats.Stats(profile).sort_stats('cumtime')
+    # stats.print_stats(50)
 
 def experiment(cfg_dict, env, env_info, atacom_rl_agent, logger, seed):
     env.seed(seed)
@@ -97,7 +97,7 @@ def experiment(cfg_dict, env, env_info, atacom_rl_agent, logger, seed):
     wandb.log(log_dict, step=0)
 
     if not cfg_dict['test']:
-        for epoch in tqdm(range(cfg_dict['n_epochs']), disable=False, leave=False):           
+        for epoch in range(cfg_dict['n_epochs']):           
             core.learn(**cfg_dict['learn'])
 
             if (epoch + 2) == cfg_dict['n_epochs']:

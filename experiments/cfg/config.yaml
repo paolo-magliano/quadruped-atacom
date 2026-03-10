@@ -183,6 +183,8 @@ train:
 # Set the directory where the output files get saved
 hydra:
   output_subdir: null
+  job:
+    chdir: false
   run:
     dir: .
 
