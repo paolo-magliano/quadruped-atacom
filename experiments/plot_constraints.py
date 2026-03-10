@@ -17,7 +17,7 @@ from atacom import ConstraintList
 from atacom import ATACOMController
 
 from atacom.envs.a1 import A1Env
-from experiments.atacom_a1 import FootPosConstraint, JointPosConstraint
+from atacom_a1 import FootPosConstraint, JointPosConstraint
 
 @hydra.main(config_name="config", config_path="../cfg", version_base="1.1")
 def main(cfg: DictConfig):

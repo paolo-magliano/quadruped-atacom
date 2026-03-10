@@ -4,7 +4,7 @@ from mushroom_rl.utils.callbacks.callback import Callback
 from mushroom_rl.core.dataset import VectorizedDataset
 
 from .compute_metric import get_metrics
-from experiments.util.log_info import log_info
+from util.log_info import log_info
 
 class LogDataset(Callback):
     def __init__(self, agent, atacom_enable, gamma, logger, n_episodes):

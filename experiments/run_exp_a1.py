@@ -3,10 +3,7 @@ import torch
 import numpy
 import wandb
 from datetime import datetime
-import sys
 import os
-
-sys.path.append('/home/magliano/Project/SafeLocomotion')
 
 from mushroom_rl.core import VectorCore, Logger
 from mushroom_rl.utils.torch import TorchUtils
@@ -20,10 +17,10 @@ from rl_util.build_rl_agent import build_rl_agent
 from rl_util.compute_metric import compute_metrics
 from rl_util.callbacks import LogDataset
 
-from experiments.util.log_info import wandb_init, log_info, clean_dir
-from experiments.util.plot_metric import plot_experiment_metric
+from util.log_info import wandb_init, log_info, clean_dir
+from util.plot_metric import plot_experiment_metric
 
-from atacom.envs.a1 import A1PIEnv, A1Pos, A1Vel
+from atacom.envs.a1 import A1PIDEnv, A1Pos, A1Vel
 from atacom_a1 import build_atacom_agent
 
 import cProfile
@@ -51,11 +48,11 @@ def main(cfg: DictConfig) -> None:
     elif cfg_dict['control']['type'] == 'Vel':
         env, env_info = A1Vel.build_env(cfg_dict)
     else:
-        env, env_info = A1PIEnv.build_env(cfg_dict)
+        env, env_info = A1PIDEnv.build_env(cfg_dict)
 
     cfg_dict['atacom']['slack_beta'] = torch.tensor(cfg_dict['atacom']['slack_beta'])
     cfg_dict['atacom']['lambda_c'] = cfg_dict['atacom']['lambda_c'] / env.dt
-    cfg_dict['atacom']['lambda_c_i'] = cfg_dict['atacom']['lambda_c_i'] / env.dt * cfg_dict['atacom']['integral_window']
+    cfg_dict['atacom']['lambda_integral'] = cfg_dict['atacom']['lambda_integral'] / env.dt
 
     for seed in cfg_dict['seed']:
         torch.manual_seed(seed)
@@ -91,14 +88,13 @@ def experiment(cfg_dict, env, env_info, atacom_rl_agent, logger, seed):
     }
 
     core = VectorCore(atacom_rl_agent, env, record_dictionary=record_params)
-    if cfg_dict['complete_eval']:
         
-        J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, 0, deep_constr_log=cfg_dict['deep_constr_log'], base_path=logger._results_dir)
-        best_R = -float('inf')
+    J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, 0, deep_constr_log=cfg_dict['deep_constr_log'], base_path=logger._results_dir)
+    best_R = -float('inf')
 
-        # Write logging
-        log_dict = log_info(logger, atacom_rl_agent.learning_agent, J, R, E, V, task_info, -1)
-        wandb.log(log_dict, step=0)
+    # Write logging
+    log_dict = log_info(logger, atacom_rl_agent.learning_agent, J, R, E, V, task_info, -1)
+    wandb.log(log_dict, step=0)
 
     if not cfg_dict['test']:
         for epoch in tqdm(range(cfg_dict['n_epochs']), disable=False, leave=False):           
@@ -108,14 +104,14 @@ def experiment(cfg_dict, env, env_info, atacom_rl_agent, logger, seed):
                 cfg_dict['eval']['render'] = True
                 cfg_dict['eval']['record'] = True
 
-            if cfg_dict['complete_eval']:
-                J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, epoch + 1, deep_constr_log=cfg_dict['deep_constr_log'], base_path=logger._results_dir)
+            J, R, E, V, task_info = compute_metrics(core, cfg_dict['eval'], env_info, epoch + 1, deep_constr_log=cfg_dict['deep_constr_log'], base_path=logger._results_dir)
 
-                # Write logging
-                log_dict = log_info(logger, atacom_rl_agent.learning_agent, J, R, E, V, task_info, epoch)
-                wandb.log(log_dict, step=epoch + 1)
-                        
-                logger.log_best_agent(atacom_rl_agent.learning_agent, R)
+            # Write logging
+            log_dict = log_info(logger, atacom_rl_agent.learning_agent, J, R, E, V, task_info, epoch)
+            wandb.log(log_dict, step=epoch + 1)
+                    
+            logger.log_best_agent(atacom_rl_agent.learning_agent, R)
+
     env.stop(soft=False)
     atacom_rl_agent.learning_agent.stop()
 

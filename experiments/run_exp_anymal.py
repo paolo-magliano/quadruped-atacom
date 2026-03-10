@@ -14,7 +14,7 @@ from omniisaacgymenvs.utils.hydra_cfg.hydra_utils import *
 from rl_util.build_rl_agent import build_rl_agent
 from rl_util.compute_metric import compute_metrics
 
-from experiments.util.log_info import wandb_init, log_info
+from util.log_info import wandb_init, log_info
 
 from atacom.envs.anymal import AnymalEnv
 from atacom_anymal import build_atacom_agent

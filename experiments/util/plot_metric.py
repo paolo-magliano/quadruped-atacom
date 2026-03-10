@@ -4,14 +4,11 @@ import os
 import torch
 import numpy as np
 
-import sys
-sys.path.append('/home/magliano/Project/SafeLocomotion')
-
 from mushroom_rl.utils.plot import get_mean_and_confidence
 
 from atacom.envs.costr_log_utils import get_constraint_info, epsilon_distribution
-from experiments.kinematics_a1 import LinkPos
-from experiments.util.lie_group import SO3
+from util.kinematics_a1 import LinkPos
+from util.lie_group import SO3
 
 def plot_metric(state, env_info, epoch, plot_path):
     constraint_epsilon = 0

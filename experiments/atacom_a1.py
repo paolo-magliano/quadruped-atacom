@@ -10,8 +10,8 @@ from atacom import Constraint, ConstraintList
 from atacom import ATACOMController
 from atacom import AgentWrapper
 
-from experiments.kinematics_a1 import LinkPos
-from experiments.util.lie_group import SO3
+from util.kinematics_a1 import LinkPos
+from util.lie_group import SO3
 
 class ATACOMWrapper(AgentWrapper):
     def __init__(self, env_info, atacom_controller: ATACOMController, learning_agent, randomize_dynamics=False, atacom_enable=None):
@@ -83,7 +83,7 @@ class JointPosConstraint(Constraint):
 
     
 class MinHeightConstraint(Constraint):
-    def __init__(self, side, env_info, dim_k=1, z=-0.2, check_J=False):
+    def __init__(self, side, env_info, dim_k=1, z=0.2, check_J=False):
         name = side + '_foot_min_height'
         self.logger = env_info['logger'] if 'logger' in env_info else None
         self.link_name = side + '_foot'
@@ -96,7 +96,7 @@ class MinHeightConstraint(Constraint):
     def fun(self, q, z=None, log=True):
         pos = self.foot.get_pos(q)
 
-        result = (pos[:, 2] - self.z).unsqueeze(1)
+        result = (pos[:, 2] + self.z).unsqueeze(1)
 
         if self.logger is not None and log:
             self.logger.log(name=self.name, value=result) # value=torch.stack([xy, torch.maximum(z_high, z_low)], dim=1))
@@ -114,7 +114,7 @@ class MinHeightConstraint(Constraint):
         return result
     
 class MaxHeightConstraint(Constraint):
-    def __init__(self, side, env_info, dim_k=1, z=-0.4, check_J=False):
+    def __init__(self, side, env_info, dim_k=1, z=0.4, check_J=False):
         name = side + '_foot_max_height'
         self.logger = env_info['logger'] if 'logger' in env_info else None
         self.link_name = side + '_foot'
@@ -127,7 +127,7 @@ class MaxHeightConstraint(Constraint):
     def fun(self, q, z=None, log=True):
         pos = self.foot.get_pos(q)
 
-        result = (self.z - pos[:, 2]).unsqueeze(1)
+        result = - (self.z + pos[:, 2]).unsqueeze(1)
 
         if self.logger is not None and log:
             self.logger.log(name=self.name, value=result) 
@@ -267,7 +267,9 @@ def build_atacom_agent(rl_agent, env_info, atacom_params, constraints_params):
                                          drift_compensation_type=atacom_params['drift_compensation_type'],
                                          drift_clipping=atacom_params['drift_clipping'],
                                          lambda_c=atacom_params['lambda_c'],
-                                         lambda_c_i=atacom_params['lambda_c_i'],
+                                         directional_constraint=atacom_params['directional_constraint'],
+                                         advance_ec=atacom_params['advance_ec'],
+                                         lambda_integral=atacom_params['lambda_integral'],
                                          integral_window=atacom_params['integral_window'])
 
     return ATACOMWrapper(env_info=env_info,
@@ -306,14 +308,14 @@ def constraint_list(constraints_params, env_info):
                                                                 check_J=constraints_params['check_J'], 
                                                                 alpha=constraints_params['foot_pos_alpha'],
                                                                 beta=constraints_params['foot_pos_beta']))
-            if isinstance(constraints_params['foot_pos_min_z'], (int, float)):
+            if isinstance(constraints_params['foot_pos_max_z_height'], (int, float)):
                 constr_list.add_constraint(MaxHeightConstraint(side, env_info, 
                                                                 check_J=constraints_params['check_J'], 
-                                                                z=constraints_params['foot_pos_min_z']))
-            if isinstance(constraints_params['foot_pos_max_z'], (int, float)):
+                                                                z=constraints_params['foot_pos_max_z_height']))
+            if isinstance(constraints_params['foot_pos_min_z_height'], (int, float)):
                 constr_list.add_constraint(MinHeightConstraint(side, env_info, 
                                                                 check_J=constraints_params['check_J'], 
-                                                                z=constraints_params['foot_pos_max_z']))
+                                                                z=constraints_params['foot_pos_min_z_height']))
             
     if constraints_params['foot_rot_max'] and constraints_params['foot_rot_min']:
         constr_list.add_constraint(FootRotConstraint(env_info, 

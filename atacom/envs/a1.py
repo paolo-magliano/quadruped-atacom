@@ -9,7 +9,7 @@ from mushroom_rl.rl_utils.spaces import Box
 from atacom.envs.costr_log_utils import ConstrLogger
 from atacom.util.extended_state_observer import HighGainObserver, MixedObserver
 
-from experiments.util.plotter import Plotter, StoreData
+from atacom.util.plotter import Plotter, StoreData
 
 class A1EffVel(A1Walking):
     def __init__(self, num_envs, horizon, headless, domain_randomization=True, camera_position=(105, 0, 4), camera_target=(95, 0, 0), action_scale=1.5, Kp=1., Kd=0., Ki=0.1):
@@ -283,7 +283,7 @@ class A1Atacom():
         info.update(costr_info)
         return obs, reward, done, info
     
-class A1PIEnv(A1Atacom, A1EffVel):
+class A1PIDEnv(A1Atacom, A1EffVel):
     def __init__(self, cfg):
         A1EffVel.__init__(self, cfg['num_envs'], cfg['horizon'], cfg['headless'], action_scale=cfg['control']['action_scale'], Kp=cfg['control']['Kp'], Kd=cfg['control']['Kd'], Ki=cfg['control']['Ki'])
         A1Atacom.__init__(self, cfg)

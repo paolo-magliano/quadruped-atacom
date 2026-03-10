@@ -2,7 +2,7 @@ import torch
 import os
 
 from atacom.envs.costr_log_utils import get_dataset_info
-from experiments.util.plot_metric import plot_metric, save_dataset, save_metric
+from util.plot_metric import plot_metric, save_dataset, save_metric
 
 def get_init_states(dataset):
     pick = True
