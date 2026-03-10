@@ -24,10 +24,10 @@ long_description = 'TODO.'
 setup(
     name='atacom',
     version=version,
-    description='Acting on the Tangent Space of the Constraint Manifold',
+    description='Acting on the Tangent Space of the Constraint Manifold for Quadruped',
     long_description=long_description,
-    author="Puze Liu",
-    author_email='puze@robot-learning.de',
+    author="Paolo Magliano",
+    author_email='paolo.magliano@polito.it',
     license='MIT',
     packages=['atacom'],
     zip_safe=False,
