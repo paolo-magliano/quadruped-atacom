@@ -13,7 +13,7 @@ from .utils import smooth_basis
 class ATACOMController:
     def __init__(self, constraints: ConstraintList, system: ControlAffineSystem, eq_constraints=None,
                  slack_beta=3., slack_dynamics_type="exp", drift_compensation_type='vanilla', drift_clipping=True,
-                 slack_tol=1e-6, lambda_c=1, lambda_c_i=0.1, integral_window=100, slack_vel_limit=1., second_order=False):
+                 slack_tol=1e-6, lambda_c=1, slack_vel_limit=1., second_order=False, directional_constraint=False, advance_ec='', lambda_integral=0.1, integral_window=10):
         self.constraints = constraints
         self.eq_constraints = eq_constraints
         self.system_dynamics = system
@@ -26,16 +26,15 @@ class ATACOMController:
             self.dim_k_eq = self.eq_constraints.dim_k
         self.second_order = second_order
         self.lambda_c = lambda_c
-        self.lambda_c_i = lambda_c_i
-        self.integral_window = integral_window
-        self.integral_residual = None
         self.drift_compensation_type = drift_compensation_type
         self.drift_clipping = drift_clipping
         self.slack = Slack(self.constraints.dim_k, beta=slack_beta, dynamics_type=slack_dynamics_type, tol=slack_tol,
                            vel_limit=slack_vel_limit)
-        
-        self.data_to_plot = None
-        self.counter = 0
+        self.directional_constraint = directional_constraint
+        self.advance_ec = advance_ec
+        self.lambda_integral = lambda_integral
+        self.integral_window = integral_window
+        self.integral_residual = None
 
     def get_q(self, s):
         """
@@ -61,49 +60,6 @@ class ATACOMController:
         else:
             return None
         
-    def add_data(self, k, residual):
-        if self.data_to_plot is None:
-            self.data_to_plot = torch.zeros((5, 100)).to(k.device)
-            self.counter = 0
-        self.data_to_plot[0, self.counter] = k
-        self.data_to_plot[1, self.counter] = residual * self.lambda_c
-        self.data_to_plot[2, self.counter] = self.integral_residual[0, 0] * ( residual > 0) * self.lambda_c_i
-        self.data_to_plot[3, self.counter] = self.integral_residual[0, 0] * ( residual > 0) * self.lambda_c_i + residual * self.lambda_c
-        self.data_to_plot[4, self.counter] = self.integral_residual[0, 0] * self.lambda_c_i
-        self.counter += 1
-        ylabels = ['(a)', '(b)', '(c)', '(d)']
-        colors = ['red', 'orange', 'blue', 'green']
-
-        if self.counter >= 100:
-            fig, axs = plt.subplots(4, 1, figsize=(11, 6))
-
-            for i in range(self.data_to_plot.shape[0] - 1):
-                axs[i].minorticks_on()
-                axs[i].set_axisbelow(True)
-                axs[i].set_xmargin(0)
-                axs[i].grid(True, linestyle='--', linewidth=0.8, alpha=0.7)
-                axs[i].grid(which='minor', linestyle=':', linewidth=0.6, alpha=0.5)
-
-                axs[i].plot(self.data_to_plot[i].cpu(), color=colors[i], alpha=0.8)
-                if i == 0:
-                    axs[i].plot(torch.zeros_like(self.data_to_plot[i]).cpu(), color='black', alpha=0.5, linestyle='--')
-                if i == 2:
-                    axs[i].plot(self.data_to_plot[4].cpu(), color=colors[i], alpha=0.5, linestyle='--')
-                if i == (self.data_to_plot.shape[0] - 2):
-                    axs[i].set_xlabel('Steps')
-                    axs[i-1].set_ylim(axs[i].get_ylim())
-                    axs[i-2].set_ylim(axs[i].get_ylim())
-                else:
-                    axs[i].set_xlabel("")
-                    axs[i].set_xticklabels([]) 
-                axs[i].set_ylabel(ylabels[i], rotation=0, labelpad=50)
-            
-            fig.tight_layout()
-            fig.subplots_adjust(top=0.9)
-            fig.savefig('EMAEC.png')
-            plt.close(fig)
-
-            self.data_to_plot = None
 
     def compose_action(self, s, u, z_dot=0.):
         # Get State
@@ -123,27 +79,21 @@ class ATACOMController:
             #TODO Check if it works with parallel environment (len(q.shape) > 1)
             l = self.eq_constraints.k(q, z)
             residual = torch.cat([residual, l], axis=-1)
-        residual_bool = residual > 0
-        if self.integral_residual is None:
-            self.integral_residual = torch.zeros_like(residual)
-        if self.integral_window > 0:
-            self.integral_residual = (1 - 1 / self.integral_window) * self.integral_residual + 1 / self.integral_window * residual
-        else:
-            self.integral_residual += residual            
+        
+        tot_residual = self.total_residual(residual)       
 
-        self.add_data(k[0, 0], residual[0, 0])
         # Get Drift
         psi = self.psi(q, q_dot, z, z_dot)
         J_G = self.J_G(q, z)
-        J_u = self.J_u(J_G, mu)
+        J_u = self.J_u(J_G, mu)        
 
         if self.drift_compensation_type == 'vanilla':
-            u_drift_compensation = torch.linalg.lstsq(J_u, -psi - self.lambda_c * residual - self.lambda_c_i * self.integral_residual * residual_bool).solution
+            u_drift_compensation = torch.linalg.lstsq(J_u, - psi - tot_residual).solution
         elif self.drift_compensation_type == 'enforced':
             #TODO Check if it works with parallel environment (len(q.shape) > 1)
             u_drift_compensation = torch.linalg.lstsq(J_G, -psi).solution
             u_drift_compensation = torch.cat([u_drift_compensation, torch.zeros(self.constraints.dim_k, device=u_drift_compensation.device)])
-            u_drift_compensation += torch.linalg.lstsq(J_u, -self.lambda_c * residual).solution
+            u_drift_compensation += torch.linalg.lstsq(J_u, - tot_residual).solution
         elif self.drift_compensation_type == 'modified':
             #TODO Check if it works with parallel environment (len(q.shape) > 1)
             # Check the compensation for each individual constriant
@@ -156,13 +106,16 @@ class ATACOMController:
                 eff_scale[torch.argsort(mu[eff_scale_idx])[self.dim_u:]] = 1
                 scale[eff_scale_idx] = eff_scale
             J_u = torch.hstack([J_G, scale * self.slack.alpha(mu)])
-            u_drift_compensation = torch.linalg.lstsq(J_u, -psi - self.lambda_c * residual).solution
-        
-        # Null negative constraint directions
-        constraint_direction = self.constraint_direction(J_G, psi, u)
-        J_u[constraint_direction < 0] = 0
+            u_drift_compensation = torch.linalg.lstsq(J_u, -psi - tot_residual).solution
+
+        # Check constraint direction
+        if self.directional_constraint:
+            constraint_direction = self.constraint_direction(J_G, u)
+            mu[constraint_direction < 0] = 1e+2  # Avoid compensating when the constraint is moving away
+            J_u = self.J_u(J_G, mu)
 
         B_u = smooth_basis(J_u)[..., :self.system_dynamics.dim_u]
+
         self.u_auxiliary = u_drift_compensation[..., :-self.constraints.dim_k]
         self.u_tangent = B_u[..., :-self.constraints.dim_k, :] @ u.unsqueeze(-1)
         self.u_tangent = self.u_tangent.squeeze(-1)
@@ -240,5 +193,21 @@ class ATACOMController:
             psi = torch.cat([psi, psi_eq], axis=-1)
         return psi
 
-    def constraint_direction(self, J_G, psi, u):
-        return psi + (J_G @ u.unsqueeze(-1)).squeeze(-1)
+    def total_residual(self, residual):
+        additional_residual = torch.zeros_like(residual)
+
+        if self.integral_residual is None:
+            self.integral_residual = torch.zeros((self.constraints.dim_k)).to(residual.device)
+
+        if self.advance_ec == 'integral':
+            residual_bool = residual > 0
+            self.integral_residual += residual
+            additional_residual += self.lambda_integral * self.integral_residual * residual_bool
+        elif self.advance_ec == 'ema':
+            residual_bool = residual > 0
+            self.integral_residual = (1 - 1 / self.integral_window) * self.integral_residual + 1 / self.integral_window * residual
+            additional_residual += self.lambda_integral * self.integral_window * self.integral_residual * residual_bool
+        return self.lambda_c * residual + additional_residual
+
+    def constraint_direction(self, J_G, u):
+        return (J_G @ u.unsqueeze(-1)).squeeze(-1)

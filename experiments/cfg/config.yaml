@@ -1,12 +1,11 @@
-
-# Task name - used to pick the class to load
+# Task/environment name
 task_name: A1
 
-# if set to positive integer, overrides the default number of environments
+# Number of parallel environments
 num_envs: 4096
 
-# seed - set to -1 to choose random seed
-seed: [1]
+# Random seed
+seed: [0]
 
 n_epochs: 15
 horizon: 1000
@@ -21,26 +20,38 @@ learn:
   quiet: ${quiet}
 
 control:
-  type: 'PI'
+  # Low-level controller used to map the policy action to joint torques.
+  #
+  # Pos:
+  #   Action = target joint positions.
+  #   A PD controller tracks the target positions.
+  #   ATACOM cannot be used in this mode.
+  #
+  # Vel:
+  #   Action = target joint velocities.
+  #   Velocities are integrated into target joint positions,
+  #   then tracked with the same PD controller as in Pos mode.
+  #
+  # PID:
+  #   Action = target joint velocities.
+  #   A PID controller directly tracks the velocity targets.
+  type: 'PID'
+
+  # Scaling applied to the policy action before the controller
   action_scale: 2.5
-  # Kp: [1.2, 2.45, 1.2] Kd: [0.01, 0.005, 0.0] Ki: [0.2, 0.2, 0.8]
+
+  # Controller gains used in PID controller
   Kp: [1.]
   Kd: [0.]
   Ki: [0.1]
 
-  # type: 'PD' # PD or PI
-  # action_scale: 3.
-  # Kp: 0.
-  # Kd: 10.
-  # Ki: 0.
-
-# MushroomRL arguments
-# test - if set, run policy in inference mode (requires setting checkpoint to load)
+# Run in inference mode only
 test: False
-# used to set checkpoint path
+
+# Checkpoint path to load
 checkpoint: ''
-# evaluate checkpoint
-complete_eval: True
+
+# Log each constraint dimension separately
 deep_constr_log: False
 
 eval:
@@ -50,54 +61,84 @@ eval:
   render: ${render}
   record: ${record}
 
-# Set to enable debugging
-debug: False 
-
-# disables rendering
+debug: False
 headless: True
-# enables native livestream
 
-# ATACOM Parameters
 atacom:
-  enable: True 
+  enable: True
   slack_dynamics_type: 'exp'
   slack_beta: 10
   slack_tol: 1e-6
-  lambda_c: 2.
-  lambda_c_i: 0.5
-  integral_window: 100
   randomize_dynamics: False
   double_integration: False
   drift_compensation_type: 'vanilla'
   drift_clipping: True
 
+  # Enable directional constraints:
+  # only constraints approached with negative derivative are enforced
+  directional_constraint: True
+
+  # Error compensation strategy
+  advance_ec: 'ema' # '', 'integral' or 'ema'
+
+  # Gain of the base constraint correction term
+  lambda_c: 2.
+
+  # Integral correction gain
+  lambda_integral: 0.5
+
+  # Window used by the ema error correction
+  integral_window: 100
+
 constraints:
-  # Joint pos contraint
+  # If False, joint limits are absolute offsets from the default pose:
+  #   q_default ± joint_limit
+  # If True, they are interpreted relative to each joint range.
   joint_percentage: False
+
+  # Symmetric position limit for the 3 leg joints
   joint_limit: # [1., 1., 1.]
+
+  # Position limit applied only to the HFE joint
   hfe_limit: # [0.5]
-  # Foot pos contraint
+
+  # Feet where foot-position constraints are active
+  # FL = front-left, FR = front-right, RL = rear-left, RR = rear-right
   feet_pos: ['FL', 'FR', 'RL', 'RR']
+
+  # Semi-axes of the allowed foot-position ellipse around the default pose
   foot_pos_alpha: # 0.5
   foot_pos_beta: # 0.5
-  foot_pos_min_z: # -0.4
-  foot_pos_max_z: # -0.1
-  # Foot rot contraint
-  foot_rot_base: 
+
+  # Vertical foot-position bounds relative to the base
+  foot_pos_max_z_height: # 0.4
+  foot_pos_min_z_height: 0.1
+
+  # Reference foot orientation(s) expressed in axis-angle form.
+  # Can be one orientation for all feet or one per foot.
+  foot_rot_base: # '[[0., 0., 0.]]'
+
+  # Allowed foot orientation range.
+  # The closer the foot is to the ground, the more the bound shrinks
+  # from foot_rot_max to foot_rot_min.
   foot_rot_max: 1.57
   foot_rot_min: # 0.8
-  # Activate the numerical control of the jacobian of all contraints. It slow down the execution
+
+  # Numerically check the Jacobian of each constraint (slow)
   check_J: False
 
-urdf_filepath: 
+# Path to the robot URDF if not in the default position
+urdf_filepath:
 
 results_dir: './logs'
 experiment_subdir: ''
+
 plot:
-  compare_paths: ['/home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Velocity_baseline', '/home/stud_magliano/projects/SafeLocomotion/trained_policy/baseline/Position_baseline']
+  compare_paths: [] 
+
 wandb:
   activate: True
-  key: '64d1b8769f524f18c3c9c53265dbde91917f7cac'  #YOUR_WANDB_API
+  key: ''  # YOUR_WANDB_API
   group: ''
   name: '${task_name}_${seed}'
   entity: 'paolo_magliano'
@@ -135,12 +176,11 @@ train:
     lam: 0.95
     ent_coeff: 1e-3
     ent_decay: 0.
-    schedule: 'adaptive' # could be adaptive, fixed
+    schedule: 'adaptive' # adaptive or fixed
     desired_kl: 0.01
     clip_grad_norm: 1. 
 
-
-# set the directory where the output files get saved
+# Set the directory where the output files get saved
 hydra:
   output_subdir: null
   run:
