@@ -10,9 +10,9 @@ This project was developed as part of a **Master Thesis**.
 ## Features
 
 - Parallel implementation of the **ATACOM safety layer**
+- Extensions of the **original ATACOM method**
 - Reinforcement learning training pipeline based on **PPO**
 - Safety constraints for quadruped locomotion
-- Integration with **MushroomRL**
 
 ---
 
