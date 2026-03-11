@@ -18,6 +18,8 @@ This project was developed as part of a **Master Thesis**.
 
 ## Installation
 
+This code was tested with **Python 3.10**.
+
 ### 1. Install MushroomRL
 
 ```bash
